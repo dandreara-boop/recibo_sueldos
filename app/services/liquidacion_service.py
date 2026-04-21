@@ -15,6 +15,66 @@ from app.models.liquidacion_detalle import LiquidacionDetalle
 
 HORAS_NORMALES_LIMITE = Decimal("208")
 DECIMAL_CENTAVOS = Decimal("0.01")
+UNIDADES = (
+    "",
+    "uno",
+    "dos",
+    "tres",
+    "cuatro",
+    "cinco",
+    "seis",
+    "siete",
+    "ocho",
+    "nueve",
+)
+DECENAS_ESPECIALES = {
+    10: "diez",
+    11: "once",
+    12: "doce",
+    13: "trece",
+    14: "catorce",
+    15: "quince",
+    16: "dieciséis",
+    17: "diecisiete",
+    18: "dieciocho",
+    19: "diecinueve",
+    20: "veinte",
+}
+DECENAS = {
+    2: "veinti",
+    3: "treinta",
+    4: "cuarenta",
+    5: "cincuenta",
+    6: "sesenta",
+    7: "setenta",
+    8: "ochenta",
+    9: "noventa",
+}
+CENTENAS = {
+    1: "ciento",
+    2: "doscientos",
+    3: "trescientos",
+    4: "cuatrocientos",
+    5: "quinientos",
+    6: "seiscientos",
+    7: "setecientos",
+    8: "ochocientos",
+    9: "novecientos",
+}
+MESES = {
+    1: "enero",
+    2: "febrero",
+    3: "marzo",
+    4: "abril",
+    5: "mayo",
+    6: "junio",
+    7: "julio",
+    8: "agosto",
+    9: "septiembre",
+    10: "octubre",
+    11: "noviembre",
+    12: "diciembre",
+}
 
 
 @dataclass
@@ -31,6 +91,102 @@ def _to_decimal(value: Decimal | float | int) -> Decimal:
     # Normalizamos todos los calculos monetarios para evitar errores de
     # precision propios de los flotantes.
     return Decimal(str(value)).quantize(DECIMAL_CENTAVOS, rounding=ROUND_HALF_UP)
+
+
+def _numero_menor_a_mil_en_letras(numero: int) -> str:
+    """Convierte un numero entero menor a mil a texto en espanol."""
+
+    if numero == 0:
+        return ""
+
+    if numero == 100:
+        return "cien"
+
+    centenas = numero // 100
+    resto = numero % 100
+    partes: list[str] = []
+
+    if centenas > 0:
+        partes.append(CENTENAS[centenas])
+
+    if resto in DECENAS_ESPECIALES:
+        partes.append(DECENAS_ESPECIALES[resto])
+    elif resto < 10:
+        if resto > 0:
+            partes.append(UNIDADES[resto])
+    elif resto < 30:
+        unidades = resto % 10
+        if resto == 21:
+            partes.append("veintiuno")
+        else:
+            partes.append(f"{DECENAS[2]}{UNIDADES[unidades]}")
+    else:
+        decena = resto // 10
+        unidad = resto % 10
+        texto_decena = DECENAS[decena]
+        if unidad == 0:
+            partes.append(texto_decena)
+        else:
+            partes.append(f"{texto_decena} y {UNIDADES[unidad]}")
+
+    return " ".join(partes).strip()
+
+
+def _numero_entero_en_letras(numero: int) -> str:
+    """Convierte un entero no negativo a su representacion textual."""
+
+    if numero == 0:
+        return "cero"
+
+    millones = numero // 1_000_000
+    miles = (numero % 1_000_000) // 1_000
+    resto = numero % 1_000
+    partes: list[str] = []
+
+    if millones > 0:
+        if millones == 1:
+            partes.append("un millón")
+        else:
+            partes.append(f"{_numero_entero_en_letras(millones)} millones")
+
+    if miles > 0:
+        if miles == 1:
+            partes.append("mil")
+        else:
+            partes.append(f"{_numero_menor_a_mil_en_letras(miles)} mil")
+
+    if resto > 0:
+        partes.append(_numero_menor_a_mil_en_letras(resto))
+
+    return " ".join(partes).strip()
+
+
+def _monto_en_letras(monto: Decimal) -> str:
+    """Convierte un importe monetario a texto legal con centavos."""
+
+    monto_normalizado = _to_decimal(monto)
+    parte_entera = int(monto_normalizado)
+    centavos = int((monto_normalizado - Decimal(parte_entera)) * 100)
+    texto_entero = _numero_entero_en_letras(parte_entera)
+
+    # Ajustamos la forma "uno" a "un" delante de "pesos" para que el texto
+    # legal suene natural y correctamente redactado.
+    if texto_entero.endswith(" veintiuno"):
+        texto_entero = f"{texto_entero[:-9]} veintiún"
+    elif texto_entero.endswith(" y uno"):
+        texto_entero = f"{texto_entero[:-5]} y un"
+    elif texto_entero.endswith(" uno"):
+        texto_entero = f"{texto_entero[:-4]} un"
+    elif texto_entero == "uno":
+        texto_entero = "un"
+
+    return f"{texto_entero} con {centavos:02d}/100"
+
+
+def _fecha_legal(fecha: datetime) -> str:
+    """Devuelve la fecha en un formato legible para el texto legal."""
+
+    return f"{fecha.day} de {MESES[fecha.month]} de {fecha.year}"
 
 
 def obtener_empleado_para_liquidacion(db: Session, empleado_id: int) -> Empleado | None:
@@ -54,7 +210,9 @@ def generar_liquidacion(
     horas_totales: Decimal,
     horas_feriado: Decimal,
     asistencia_perfecta: Decimal,
-    total_descuentos: Decimal,
+    descuento_cuenta_corriente: Decimal,
+    descuento_adelanto: Decimal,
+    descuento_varios: Decimal,
 ) -> ResultadoLiquidacion:
     """Calcula y guarda una liquidacion junto con sus detalles."""
 
@@ -76,22 +234,40 @@ def generar_liquidacion(
     # Las horas de feriado se liquidan como un adicional independiente.
     monto_feriado = _to_decimal(horas_feriado * valor_hora_base)
 
+    # Sumamos los descuentos informados de forma separada para conservar tanto
+    # el total agregado en la cabecera como el desglose en el detalle.
+    total_descuentos = _to_decimal(
+        descuento_cuenta_corriente + descuento_adelanto + descuento_varios
+    )
+
     # El total neto surge de sumar haberes y restar descuentos.
     total_neto = _to_decimal(
         subtotal_horas + monto_feriado + asistencia_perfecta - total_descuentos
     )
 
-    # Guardamos un texto simple que deja trazabilidad del importe final.
-    total_en_letras = f"Total neto: {total_neto}"
+    # Generamos el texto legal completo con fecha actual, nombre del empleado
+    # y el monto final expresado tanto en letras como en numeros.
+    fecha_actual = datetime.now()
+    nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
+    monto_en_letras = _monto_en_letras(total_neto)
+    monto_en_numeros = f"{total_neto:.2f}"
+    mes_texto = MESES.get(mes, "")
+    periodo = f"{mes_texto} de {anio}"
+
+    total_en_letras = (
+        f"El {_fecha_legal(fecha_actual)}, {nombre_completo} recibió de "
+        f"M-50 S.A.S en concepto de pago correspondiente a {periodo} "
+        f"la suma de pesos {monto_en_letras} ($ {monto_en_numeros})"
+    )
 
     liquidacion = Liquidacion(
         empleado_id=empleado.id,
         mes=mes,
         anio=anio,
-        horas_totales=float(horas_totales),
-        horas_normales=float(horas_normales),
-        horas_extra=float(horas_extra),
-        horas_feriado=float(horas_feriado),
+        horas_totales=horas_totales,
+        horas_normales=horas_normales,
+        horas_extra=horas_extra,
+        horas_feriado=horas_feriado,
         valor_hora_base=valor_hora_base,
         subtotal_horas=subtotal_horas,
         monto_feriado=monto_feriado,
@@ -99,7 +275,7 @@ def generar_liquidacion(
         total_descuentos=total_descuentos,
         total_neto=total_neto,
         total_en_letras=total_en_letras,
-        fecha_generacion=datetime.utcnow(),
+        fecha_generacion=fecha_actual,
     )
 
     # Armamos solo los conceptos que realmente aportan valor a la liquidacion
@@ -132,7 +308,7 @@ def generar_liquidacion(
     if monto_feriado > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Adicional por feriado",
+                concepto="Horas feriado",
                 tipo="haber",
                 importe=monto_feriado,
                 orden=orden,
@@ -151,12 +327,34 @@ def generar_liquidacion(
         )
         orden += 1
 
-    if total_descuentos > 0:
+    if descuento_cuenta_corriente > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Descuentos",
+                concepto="Cuenta corriente",
                 tipo="descuento",
-                importe=total_descuentos,
+                importe=descuento_cuenta_corriente,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if descuento_adelanto > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Adelanto",
+                tipo="descuento",
+                importe=descuento_adelanto,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if descuento_varios > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Varios",
+                tipo="descuento",
+                importe=descuento_varios,
                 orden=orden,
             )
         )

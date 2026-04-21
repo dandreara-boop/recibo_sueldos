@@ -6,8 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
+from io import BytesIO
 
 from app.core.database import get_db
 from app.models.liquidacion import Liquidacion
@@ -17,6 +19,7 @@ from app.services.liquidacion_service import (
     generar_liquidacion,
     obtener_empleado_para_liquidacion,
 )
+from app.services.pdf_service import generar_pdf_liquidacion, obtener_liquidacion_para_pdf
 
 router = APIRouter(prefix="/liquidaciones", tags=["liquidaciones"])
 
@@ -30,7 +33,9 @@ class LiquidacionGenerarRequest(BaseModel):
     horas_totales: Decimal
     horas_feriado: Decimal = Decimal("0")
     asistencia_perfecta: Decimal = Decimal("0")
-    total_descuentos: Decimal = Decimal("0")
+    descuento_cuenta_corriente: Decimal = Decimal("0")
+    descuento_adelanto: Decimal = Decimal("0")
+    descuento_varios: Decimal = Decimal("0")
 
     @field_validator("mes")
     @classmethod
@@ -54,7 +59,9 @@ class LiquidacionGenerarRequest(BaseModel):
         "horas_totales",
         "horas_feriado",
         "asistencia_perfecta",
-        "total_descuentos",
+        "descuento_cuenta_corriente",
+        "descuento_adelanto",
+        "descuento_varios",
     )
     @classmethod
     def validar_no_negativo(cls, value: Decimal) -> Decimal:
@@ -135,7 +142,9 @@ def post_generar_liquidacion(
         horas_totales=payload.horas_totales,
         horas_feriado=payload.horas_feriado,
         asistencia_perfecta=payload.asistencia_perfecta,
-        total_descuentos=payload.total_descuentos,
+        descuento_cuenta_corriente=payload.descuento_cuenta_corriente,
+        descuento_adelanto=payload.descuento_adelanto,
+        descuento_varios=payload.descuento_varios,
     )
 
     liquidacion: Liquidacion = resultado.liquidacion
@@ -161,4 +170,32 @@ def post_generar_liquidacion(
         total_en_letras=liquidacion.total_en_letras,
         fecha_generacion=liquidacion.fecha_generacion,
         detalles=detalles,
+    )
+
+
+@router.get("/{liquidacion_id}/pdf")
+def get_liquidacion_pdf(
+    liquidacion_id: int,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Genera y devuelve el PDF descargable de una liquidacion existente."""
+
+    # Buscamos la liquidacion con su empleado, categoria y detalle para poder
+    # armar el recibo completo sin consultas adicionales.
+    liquidacion = obtener_liquidacion_para_pdf(db, liquidacion_id)
+    if liquidacion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La liquidacion indicada no existe.",
+        )
+
+    pdf_bytes = generar_pdf_liquidacion(liquidacion)
+    nombre_archivo = f"liquidacion_{liquidacion.id}.pdf"
+
+    # Enviamos el PDF en memoria como archivo descargable para evitar generar
+    # archivos temporales en disco cuando no son necesarios.
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )
