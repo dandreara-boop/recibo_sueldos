@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.categorias import router as categorias_router
 from app.api.empleados import router as empleados_router
+from app.api.liquidaciones import router as liquidaciones_router
 from app.core.init_db import init_db
 
 app = FastAPI(title="Sueldos API")
@@ -22,6 +23,7 @@ def on_startup() -> None:
 # esta fase inicial del backend.
 app.include_router(categorias_router)
 app.include_router(empleados_router)
+app.include_router(liquidaciones_router)
 
 
 @app.get("/")
