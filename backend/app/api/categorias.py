@@ -1,5 +1,7 @@
 """Endpoints y esquemas para el CRUD basico de categorias."""
 
+from __future__ import annotations
+
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, status
@@ -18,6 +20,7 @@ class CategoriaCreate(BaseModel):
 
     nombre: str
     valor_hora: Decimal
+    monto_asistencia_perfecta: Decimal = Decimal("0")
 
     @field_validator("nombre")
     @classmethod
@@ -31,15 +34,24 @@ class CategoriaCreate(BaseModel):
             raise ValueError("El nombre no puede estar vacio.")
         return nombre_limpio
 
-    @field_validator("valor_hora")
+    @field_validator("valor_hora", "monto_asistencia_perfecta")
     @classmethod
-    def validar_valor_hora(cls, value: Decimal) -> Decimal:
-        """Asegura que el valor por hora sea mayor que cero."""
+    def validar_importes(cls, value: Decimal, info) -> Decimal:
+        """
+        Valida importes monetarios.
 
-        # La categoria solo tiene sentido si el valor hora representa un monto
-        # positivo. Rechazamos cero y numeros negativos.
-        if value <= 0:
+        - valor_hora debe ser mayor que 0
+        - monto_asistencia_perfecta no puede ser negativo
+        """
+
+        if info.field_name == "valor_hora" and value <= 0:
             raise ValueError("El valor_hora debe ser mayor que 0.")
+
+        if info.field_name == "monto_asistencia_perfecta" and value < 0:
+            raise ValueError(
+                "El monto_asistencia_perfecta no puede ser negativo."
+            )
+
         return value
 
 
@@ -51,10 +63,11 @@ class CategoriaResponse(BaseModel):
     id: int
     nombre: str
     valor_hora: Decimal
+    monto_asistencia_perfecta: Decimal
 
 
 @router.get("/", response_model=list[CategoriaResponse])
-def get_categorias(db: Session = Depends(get_db)) -> list[CategoriaResponse]:
+def get_categorias(db: Session = Depends(get_db)) -> list[Categoria]:
     """Lista todas las categorias disponibles."""
 
     # La sesion se inyecta con Depends para reutilizar la conexion configurada
@@ -79,4 +92,5 @@ def post_categoria(
         db=db,
         nombre=categoria_data.nombre,
         valor_hora=categoria_data.valor_hora,
+        monto_asistencia_perfecta=categoria_data.monto_asistencia_perfecta,
     )

@@ -1,11 +1,13 @@
 """Logica de negocio para las operaciones de categorias."""
 
+from __future__ import annotations
+
+from decimal import Decimal
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.categoria import Categoria
-from decimal import Decimal
-
 
 
 def listar_categorias(db: Session) -> list[Categoria]:
@@ -17,11 +19,20 @@ def listar_categorias(db: Session) -> list[Categoria]:
     return list(db.scalars(stmt).all())
 
 
-def crear_categoria(db: Session, nombre: str, valor_hora: Decimal) -> Categoria:
+def crear_categoria(
+    db: Session,
+    nombre: str,
+    valor_hora: Decimal,
+    monto_asistencia_perfecta: Decimal,
+) -> Categoria:
     """Crea una categoria nueva y la persiste en la base de datos."""
 
     # Instanciamos el modelo ORM con los datos ya validados por la capa API.
-    categoria = Categoria(nombre=nombre, valor_hora=valor_hora)
+    categoria = Categoria(
+        nombre=nombre,
+        valor_hora=valor_hora,
+        monto_asistencia_perfecta=monto_asistencia_perfecta,
+    )
 
     # Guardamos la categoria, confirmamos la transaccion y refrescamos el
     # objeto para devolverlo con los datos finales generados por la base.
