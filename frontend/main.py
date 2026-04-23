@@ -1,35 +1,37 @@
-"""Punto de entrada de la aplicacion de escritorio en Flet."""
-
 import flet as ft
 
 from app.components.navbar import build_navbar
-from app.views.home_view import build_home_view
+from app.views.empleados_view import build_empleados_view
+from app.views.liquidaciones_view import build_liquidaciones_view
 
 
-def main(page: ft.Page) -> None:
-    """Configura la ventana principal y monta la vista inicial."""
+def main(page: ft.Page):
+    """
+    Punto de entrada principal de la app Flet.
+    """
 
-    # Definimos una ventana simple para esta primera fase del frontend.
     page.title = "Sistema de Recibos"
-    page.window_width = 900
-    page.window_height = 600
+    page.window_width = 1100
+    page.window_height = 750
     page.padding = 0
-    page.theme_mode = ft.ThemeMode.LIGHT
     page.scroll = ft.ScrollMode.AUTO
 
-    # Construimos la pantalla con una barra superior y una vista central
-    # sencilla para probar la conexion con el backend.
+    contenido = ft.Container(expand=True)
+    contenido.content = build_empleados_view(page)
+    
+
+    contenido.content = build_liquidaciones_view(page)
+
     page.add(
         ft.Column(
             controls=[
                 build_navbar(),
-                build_home_view(page),
+                contenido,
             ],
-            spacing=0,
             expand=True,
+            spacing=0,
         )
     )
 
 
-if __name__ == "__main__":
-    ft.app(target=main)
+ft.app(target=main)

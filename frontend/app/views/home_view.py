@@ -52,7 +52,7 @@ def build_home_view(page: ft.Page) -> ft.Control:
                     color=ft.Colors.BLUE_GREY_700,
                 ),
                 ft.ElevatedButton(
-                    text="Probar conexion con backend",
+                    "Probar conexion con backend",
                     icon=ft.Icons.CLOUD_DONE_OUTLINED,
                     on_click=on_test_connection,
                 ),
