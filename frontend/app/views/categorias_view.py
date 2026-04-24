@@ -17,7 +17,11 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         label="Valor hora",
         width=200,
     )
-
+    asistencia_input = ft.TextField(
+    label="Asistencia perfecta",
+    width=200,
+    value="0",
+    )
     mensaje_text = ft.Text(
         value="",
         size=14,
@@ -69,6 +73,10 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                             value=f"Valor hora: ${categoria['valor_hora']}",
                             width=180,
                         ),
+                        ft.Text(
+                            value=f"Asistencia: ${categoria['monto_asistencia_perfecta']}",
+                            width=200,
+                        ),
                     ]
                 ),
                 padding=10,
@@ -105,8 +113,25 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
             mensaje_text.color = ft.Colors.RED
             page.update()
             return
+        
+        asistencia_texto = asistencia_input.value.strip()
 
-        resultado = crear_categoria(nombre, valor_hora)
+        try:
+            valor_hora = float(valor_hora_texto)
+            monto_asistencia = float(asistencia_texto or 0)
+        except ValueError:
+            mensaje_text.value = "Valor hora y asistencia deben ser numéricos."
+            mensaje_text.color = ft.Colors.RED
+            page.update()
+            return
+
+        if monto_asistencia < 0:
+            mensaje_text.value = "La asistencia perfecta no puede ser negativa."
+            mensaje_text.color = ft.Colors.RED
+            page.update()
+            return
+
+        resultado = crear_categoria(nombre, valor_hora, monto_asistencia)
 
         if resultado["ok"]:
             mensaje_text.value = "Categoría creada correctamente."
@@ -118,6 +143,8 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
             mensaje_text.value = resultado["message"]
             mensaje_text.color = ft.Colors.RED
             page.update()
+
+
 
     # Cargamos la lista al entrar por primera vez a la vista
     cargar_categorias()
@@ -139,6 +166,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                     controls=[
                         nombre_input,
                         valor_hora_input,
+                        asistencia_input,
                         ft.ElevatedButton(
                             "Crear categoría",
                             icon=ft.Icons.ADD,
@@ -147,6 +175,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                     ],
                     wrap=True,
                 ),
+
                 mensaje_text,
                 ft.Divider(),
                 ft.Text(

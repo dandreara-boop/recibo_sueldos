@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, Numeric, String
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.empleado import Empleado
-from decimal import Decimal
-
 
 
 class Liquidacion(Base):
@@ -18,71 +17,84 @@ class Liquidacion(Base):
 
     __tablename__ = "liquidaciones"
 
-    # Identificador unico de la liquidacion dentro de la tabla.
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # Referencia al empleado al que pertenece esta liquidacion. Se vincula con
-    # la tabla de empleados mediante una clave foranea.
+    # Empleado al que pertenece la liquidacion.
     empleado_id: Mapped[int] = mapped_column(
         ForeignKey("empleados.id"),
         nullable=False,
     )
 
-    # Mes liquidado, representado como numero entero del 1 al 12.
+    # Periodo liquidado.
     mes: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    # Anio correspondiente al periodo liquidado.
     anio: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Total general de horas trabajadas en el periodo.
-    horas_totales: Mapped[float] = mapped_column(Float, nullable=False)
+    # Cantidad de horas laborables reales del mes segun calendario
+    # (lunes a sabado, 8 horas por dia). Este dato es informativo.
+    horas_laborables_mes: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+    )
 
-    # Cantidad de horas normales trabajadas en el periodo.
-    horas_normales: Mapped[float] = mapped_column(Float, nullable=False)
+    # Horas base pagadas. En este sistema se pagan 208 horas siempre.
+    horas_base_pagadas: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+    )
 
-    # Cantidad de horas extra trabajadas en el periodo.
-    horas_extra: Mapped[float] = mapped_column(Float, nullable=False)
+    # Horas extra automaticas. En esta nueva logica, como no se cargan
+    # horas trabajadas manuales, quedan en 0 salvo que mas adelante
+    # se incorpore una fuente automatica de horas reales.
+    horas_extra_automaticas: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=0,
+    )
 
-    # Cantidad de horas trabajadas en dias feriados.
-    horas_feriado: Mapped[float] = mapped_column(Float, nullable=False)
+    # Horas extra extraordinarias cargadas manualmente.
+    horas_extra_extraordinarias: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=0,
+    )
 
-    # Valor base de la hora utilizado para calcular la liquidacion. Se guarda
-    # como importe monetario usando precision decimal.
+    # Horas trabajadas en feriado.
+    horas_feriado: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=0,
+    )
+
+    # Valor hora base de la categoria.
     valor_hora_base: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    # Suma parcial correspondiente al calculo de horas antes de adicionales y
-    # descuentos.
-    subtotal_horas: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    # Subtotal correspondiente a horas base + horas extra.
+    subtotal_horas: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    # Importe adicional generado por las horas trabajadas en feriado.
+    # Importe adicional por horas trabajadas en feriado.
     monto_feriado: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    # Monto adicional por asistencia perfecta. Por defecto comienza en cero si
-    # no corresponde aplicar este concepto.
+    # Monto por asistencia perfecta.
     asistencia_perfecta: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=0,
     )
 
-    # Total de descuentos aplicados a la liquidacion. Por defecto se inicializa
-    # en cero hasta que existan descuentos a computar.
+    # Total de descuentos.
     total_descuentos: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=0,
     )
 
-    # Resultado final neto que percibe el empleado luego de sumar conceptos y
-    # restar descuentos.
+    # Neto final.
     total_neto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    # Representacion textual del total neto, util para recibos o reportes.
-    total_en_letras: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Texto legal completo.
+    total_en_letras: Mapped[str] = mapped_column(String(500), nullable=False)
 
-    # Fecha y hora en la que se genero la liquidacion dentro del sistema.
+    # Fecha de generacion.
     fecha_generacion: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    # Relacion ORM para acceder al empleado asociado sin consultar manualmente
-    # la clave foranea.
     empleado: Mapped[Empleado] = relationship(backref="liquidaciones")

@@ -44,7 +44,11 @@ def listar_categorias() -> dict:
         }
 
 
-def crear_categoria(nombre: str, valor_hora: float) -> dict:
+def crear_categoria(
+    nombre: str,
+    valor_hora: float,
+    monto_asistencia_perfecta: float,
+) -> dict:
     """
     Envía una nueva categoría al backend.
     """
@@ -52,6 +56,7 @@ def crear_categoria(nombre: str, valor_hora: float) -> dict:
         payload = {
             "nombre": nombre,
             "valor_hora": valor_hora,
+            "monto_asistencia_perfecta": monto_asistencia_perfecta
         }
 
         response = requests.post(

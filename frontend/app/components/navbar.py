@@ -12,7 +12,7 @@ def build_navbar() -> ft.Control:
         content=ft.Row(
             controls=[
                 ft.Text(
-                    value="Sistema de Recibos",
+                    value="Sistema de Recibos internos",
                     size=20,
                     weight=ft.FontWeight.BOLD,
                     color=ft.Colors.WHITE,

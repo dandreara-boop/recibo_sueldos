@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -13,8 +14,10 @@ from app.models.empleado import Empleado
 from app.models.liquidacion import Liquidacion
 from app.models.liquidacion_detalle import LiquidacionDetalle
 
-HORAS_NORMALES_LIMITE = Decimal("208")
+HORAS_BASE_MENSUALES = Decimal("208")
+HORAS_POR_DIA = Decimal("8")
 DECIMAL_CENTAVOS = Decimal("0.01")
+
 UNIDADES = (
     "",
     "uno",
@@ -87,15 +90,29 @@ class ResultadoLiquidacion:
 
 def _to_decimal(value: Decimal | float | int) -> Decimal:
     """Convierte un valor numerico a Decimal con dos decimales."""
-
-    # Normalizamos todos los calculos monetarios para evitar errores de
-    # precision propios de los flotantes.
     return Decimal(str(value)).quantize(DECIMAL_CENTAVOS, rounding=ROUND_HALF_UP)
+
+
+def _calcular_horas_laborables_mes(mes: int, anio: int) -> Decimal:
+    """
+    Calcula las horas laborables del mes considerando:
+    - lunes a sabado
+    - 8 horas por dia
+    """
+    cantidad_dias_mes = calendar.monthrange(anio, mes)[1]
+    dias_laborables = 0
+
+    for dia in range(1, cantidad_dias_mes + 1):
+        dia_semana = calendar.weekday(anio, mes, dia)
+        # lunes=0 ... sabado=5, domingo=6
+        if dia_semana <= 5:
+            dias_laborables += 1
+
+    return _to_decimal(Decimal(dias_laborables) * HORAS_POR_DIA)
 
 
 def _numero_menor_a_mil_en_letras(numero: int) -> str:
     """Convierte un numero entero menor a mil a texto en espanol."""
-
     if numero == 0:
         return ""
 
@@ -134,7 +151,6 @@ def _numero_menor_a_mil_en_letras(numero: int) -> str:
 
 def _numero_entero_en_letras(numero: int) -> str:
     """Convierte un entero no negativo a su representacion textual."""
-
     if numero == 0:
         return "cero"
 
@@ -163,14 +179,11 @@ def _numero_entero_en_letras(numero: int) -> str:
 
 def _monto_en_letras(monto: Decimal) -> str:
     """Convierte un importe monetario a texto legal con centavos."""
-
     monto_normalizado = _to_decimal(monto)
     parte_entera = int(monto_normalizado)
     centavos = int((monto_normalizado - Decimal(parte_entera)) * 100)
     texto_entero = _numero_entero_en_letras(parte_entera)
 
-    # Ajustamos la forma "uno" a "un" delante de "pesos" para que el texto
-    # legal suene natural y correctamente redactado.
     if texto_entero.endswith(" veintiuno"):
         texto_entero = f"{texto_entero[:-9]} veintiún"
     elif texto_entero.endswith(" y uno"):
@@ -180,20 +193,19 @@ def _monto_en_letras(monto: Decimal) -> str:
     elif texto_entero == "uno":
         texto_entero = "un"
 
-    return f"{texto_entero} con {centavos:02d}/100"
+    return f"{texto_entero} con {centavos:02d} centavos"
 
 
 def _fecha_legal(fecha: datetime) -> str:
-    """Devuelve la fecha en un formato legible para el texto legal."""
-
+    """Devuelve la fecha en formato legal legible."""
     return f"{fecha.day} de {MESES[fecha.month]} de {fecha.year}"
 
 
-def obtener_empleado_para_liquidacion(db: Session, empleado_id: int) -> Empleado | None:
+def obtener_empleado_para_liquidacion(
+    db: Session,
+    empleado_id: int,
+) -> Empleado | None:
     """Busca un empleado con su categoria para poder liquidarlo."""
-
-    # Cargamos la categoria en la misma consulta porque el valor hora base
-    # depende directamente de esa relacion.
     stmt = (
         select(Empleado)
         .options(joinedload(Empleado.categoria))
@@ -207,52 +219,70 @@ def generar_liquidacion(
     empleado: Empleado,
     mes: int,
     anio: int,
-    horas_totales: Decimal,
     horas_feriado: Decimal,
-    asistencia_perfecta: Decimal,
+    horas_extra_extraordinarias: Decimal,
+    aplicar_asistencia_perfecta: bool,
     descuento_cuenta_corriente: Decimal,
     descuento_adelanto: Decimal,
     descuento_varios: Decimal,
 ) -> ResultadoLiquidacion:
     """Calcula y guarda una liquidacion junto con sus detalles."""
 
-    # Tomamos el valor hora desde la categoria vigente del empleado y lo
-    # convertimos a Decimal para mantener precision monetaria.
     valor_hora_base = _to_decimal(empleado.categoria.valor_hora)
 
-    # Las horas normales se pagan hasta un maximo de 208. El excedente se
-    # considera hora extra.
-    horas_normales = min(horas_totales, HORAS_NORMALES_LIMITE)
-    horas_extra = max(horas_totales - HORAS_NORMALES_LIMITE, Decimal("0"))
+    # Horas informativas del calendario real del mes.
+    horas_laborables_mes = _calcular_horas_laborables_mes(mes, anio)
 
-    # Calculamos cada componente salarial por separado para luego armar tanto
-    # el resumen principal como el detalle de conceptos.
-    monto_horas_normales = _to_decimal(horas_normales * valor_hora_base)
-    monto_horas_extra = _to_decimal(horas_extra * valor_hora_base * Decimal("2"))
-    subtotal_horas = _to_decimal(monto_horas_normales + monto_horas_extra)
+    # En este sistema se pagan 208 horas base siempre.
+    horas_base_pagadas = HORAS_BASE_MENSUALES
 
-    # Las horas de feriado se liquidan como un adicional independiente.
-    monto_feriado = _to_decimal(horas_feriado * valor_hora_base)
+    # Por ahora no se cargan horas reales manuales, por lo tanto
+    # no hay horas extra automaticas derivadas del exceso sobre 208.
+    horas_extra_automaticas = max(
+    horas_laborables_mes - HORAS_BASE_MENSUALES,
+    Decimal("0.00"),
+)
 
-    # Sumamos los descuentos informados de forma separada para conservar tanto
-    # el total agregado en la cabecera como el desglose en el detalle.
-    total_descuentos = _to_decimal(
-        descuento_cuenta_corriente + descuento_adelanto + descuento_varios
+    horas_extra_extraordinarias = _to_decimal(horas_extra_extraordinarias)
+    horas_feriado = _to_decimal(horas_feriado)
+
+    monto_horas_base = _to_decimal(horas_base_pagadas * valor_hora_base)
+    monto_horas_extra_automaticas = _to_decimal(
+        horas_extra_automaticas * valor_hora_base * Decimal("2")
+    )
+    monto_horas_extra_extraordinarias = _to_decimal(
+        horas_extra_extraordinarias * valor_hora_base * Decimal("2")
     )
 
-    # El total neto surge de sumar haberes y restar descuentos.
+    subtotal_horas = _to_decimal(
+        monto_horas_base
+        + monto_horas_extra_automaticas
+        + monto_horas_extra_extraordinarias
+    )
+
+    monto_feriado = _to_decimal(horas_feriado * valor_hora_base)
+
+    asistencia_perfecta = (
+        _to_decimal(empleado.categoria.monto_asistencia_perfecta)
+        if aplicar_asistencia_perfecta
+        else Decimal("0.00")
+    )
+
+    total_descuentos = _to_decimal(
+        descuento_cuenta_corriente
+        + descuento_adelanto
+        + descuento_varios
+    )
+
     total_neto = _to_decimal(
         subtotal_horas + monto_feriado + asistencia_perfecta - total_descuentos
     )
 
-    # Generamos el texto legal completo con fecha actual, nombre del empleado
-    # y el monto final expresado tanto en letras como en numeros.
     fecha_actual = datetime.now()
     nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
     monto_en_letras = _monto_en_letras(total_neto)
-    monto_en_numeros = f"{total_neto:.2f}"
-    mes_texto = MESES.get(mes, "")
-    periodo = f"{mes_texto} de {anio}"
+    monto_en_numeros = format(total_neto, ".2f")
+    periodo = f"{MESES.get(mes, '').capitalize()} de {anio}"
 
     total_en_letras = (
         f"El {_fecha_legal(fecha_actual)}, {nombre_completo} recibió de "
@@ -264,9 +294,10 @@ def generar_liquidacion(
         empleado_id=empleado.id,
         mes=mes,
         anio=anio,
-        horas_totales=horas_totales,
-        horas_normales=horas_normales,
-        horas_extra=horas_extra,
+        horas_laborables_mes=horas_laborables_mes,
+        horas_base_pagadas=horas_base_pagadas,
+        horas_extra_automaticas=horas_extra_automaticas,
+        horas_extra_extraordinarias=horas_extra_extraordinarias,
         horas_feriado=horas_feriado,
         valor_hora_base=valor_hora_base,
         subtotal_horas=subtotal_horas,
@@ -278,28 +309,37 @@ def generar_liquidacion(
         fecha_generacion=fecha_actual,
     )
 
-    # Armamos solo los conceptos que realmente aportan valor a la liquidacion
-    # para que el detalle sea claro y facil de leer.
     detalles: list[LiquidacionDetalle] = []
     orden = 1
 
-    if monto_horas_normales > 0:
+    if monto_horas_base > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas normales",
+                concepto="Horas base (mínimo garantizado 208 hs)",
                 tipo="haber",
-                importe=monto_horas_normales,
+                importe=monto_horas_base,
                 orden=orden,
             )
         )
         orden += 1
 
-    if monto_horas_extra > 0:
+    if monto_horas_extra_automaticas > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas extra al doble",
+                concepto="Horas extra automáticas",
                 tipo="haber",
-                importe=monto_horas_extra,
+                importe=monto_horas_extra_automaticas,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if monto_horas_extra_extraordinarias > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Horas extra extraordinarias",
+                tipo="haber",
+                importe=monto_horas_extra_extraordinarias,
                 orden=orden,
             )
         )
@@ -308,7 +348,7 @@ def generar_liquidacion(
     if monto_feriado > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas feriado",
+                concepto="Horas trabajadas en feriado",
                 tipo="haber",
                 importe=monto_feriado,
                 orden=orden,
@@ -332,7 +372,7 @@ def generar_liquidacion(
             LiquidacionDetalle(
                 concepto="Cuenta corriente",
                 tipo="descuento",
-                importe=descuento_cuenta_corriente,
+                importe=_to_decimal(descuento_cuenta_corriente),
                 orden=orden,
             )
         )
@@ -343,7 +383,7 @@ def generar_liquidacion(
             LiquidacionDetalle(
                 concepto="Adelanto",
                 tipo="descuento",
-                importe=descuento_adelanto,
+                importe=_to_decimal(descuento_adelanto),
                 orden=orden,
             )
         )
@@ -354,13 +394,12 @@ def generar_liquidacion(
             LiquidacionDetalle(
                 concepto="Varios",
                 tipo="descuento",
-                importe=descuento_varios,
+                importe=_to_decimal(descuento_varios),
                 orden=orden,
             )
         )
+        orden += 1
 
-    # Persistimos primero la liquidacion principal para obtener su id y luego
-    # vinculamos los detalles dentro de la misma transaccion.
     db.add(liquidacion)
     db.flush()
 

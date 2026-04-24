@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
-from io import BytesIO
 
 from app.core.database import get_db
 from app.models.liquidacion import Liquidacion
@@ -19,7 +19,10 @@ from app.services.liquidacion_service import (
     generar_liquidacion,
     obtener_empleado_para_liquidacion,
 )
-from app.services.pdf_service import generar_pdf_liquidacion, obtener_liquidacion_para_pdf
+from app.services.pdf_service import (
+    generar_pdf_liquidacion,
+    obtener_liquidacion_para_pdf,
+)
 
 router = APIRouter(prefix="/liquidaciones", tags=["liquidaciones"])
 
@@ -30,9 +33,9 @@ class LiquidacionGenerarRequest(BaseModel):
     empleado_id: int
     mes: int
     anio: int
-    horas_totales: Decimal
     horas_feriado: Decimal = Decimal("0")
-    asistencia_perfecta: Decimal = Decimal("0")
+    horas_extra_extraordinarias: Decimal = Decimal("0")
+    aplicar_asistencia_perfecta: bool = False
     descuento_cuenta_corriente: Decimal = Decimal("0")
     descuento_adelanto: Decimal = Decimal("0")
     descuento_varios: Decimal = Decimal("0")
@@ -40,8 +43,6 @@ class LiquidacionGenerarRequest(BaseModel):
     @field_validator("mes")
     @classmethod
     def validar_mes(cls, value: int) -> int:
-        """Valida que el mes este dentro del rango calendario."""
-
         if value < 1 or value > 12:
             raise ValueError("El mes debe estar entre 1 y 12.")
         return value
@@ -49,24 +50,19 @@ class LiquidacionGenerarRequest(BaseModel):
     @field_validator("anio")
     @classmethod
     def validar_anio(cls, value: int) -> int:
-        """Valida que el anio sea mayor que cero."""
-
         if value <= 0:
             raise ValueError("El anio debe ser mayor que 0.")
         return value
 
     @field_validator(
-        "horas_totales",
         "horas_feriado",
-        "asistencia_perfecta",
+        "horas_extra_extraordinarias",
         "descuento_cuenta_corriente",
         "descuento_adelanto",
         "descuento_varios",
     )
     @classmethod
     def validar_no_negativo(cls, value: Decimal) -> Decimal:
-        """Impide enviar numeros negativos en la liquidacion."""
-
         if value < 0:
             raise ValueError("Este valor no puede ser negativo.")
         return value
@@ -93,9 +89,10 @@ class LiquidacionResponse(BaseModel):
     empleado_id: int
     mes: int
     anio: int
-    horas_totales:Decimal
-    horas_normales: Decimal
-    horas_extra: Decimal
+    horas_laborables_mes: Decimal
+    horas_base_pagadas: Decimal
+    horas_extra_automaticas: Decimal
+    horas_extra_extraordinarias: Decimal
     horas_feriado: Decimal
     valor_hora_base: Decimal
     subtotal_horas: Decimal
@@ -119,8 +116,6 @@ def post_generar_liquidacion(
 ) -> LiquidacionResponse:
     """Genera y guarda una liquidacion de sueldo para un empleado."""
 
-    # Verificamos que el empleado exista y tenga categoria asociada, porque
-    # sin esos datos no es posible calcular la liquidacion.
     empleado = obtener_empleado_para_liquidacion(db, payload.empleado_id)
     if empleado is None:
         raise HTTPException(
@@ -139,9 +134,9 @@ def post_generar_liquidacion(
         empleado=empleado,
         mes=payload.mes,
         anio=payload.anio,
-        horas_totales=payload.horas_totales,
         horas_feriado=payload.horas_feriado,
-        asistencia_perfecta=payload.asistencia_perfecta,
+        horas_extra_extraordinarias=payload.horas_extra_extraordinarias,
+        aplicar_asistencia_perfecta=payload.aplicar_asistencia_perfecta,
         descuento_cuenta_corriente=payload.descuento_cuenta_corriente,
         descuento_adelanto=payload.descuento_adelanto,
         descuento_varios=payload.descuento_varios,
@@ -150,16 +145,15 @@ def post_generar_liquidacion(
     liquidacion: Liquidacion = resultado.liquidacion
     detalles: list[LiquidacionDetalle] = resultado.detalles
 
-    # Construimos la respuesta de forma explicita para incluir el detalle ya
-    # persistido junto con la cabecera principal.
     return LiquidacionResponse(
         id=liquidacion.id,
         empleado_id=liquidacion.empleado_id,
         mes=liquidacion.mes,
         anio=liquidacion.anio,
-        horas_totales=liquidacion.horas_totales,
-        horas_normales=liquidacion.horas_normales,
-        horas_extra=liquidacion.horas_extra,
+        horas_laborables_mes=liquidacion.horas_laborables_mes,
+        horas_base_pagadas=liquidacion.horas_base_pagadas,
+        horas_extra_automaticas=liquidacion.horas_extra_automaticas,
+        horas_extra_extraordinarias=liquidacion.horas_extra_extraordinarias,
         horas_feriado=liquidacion.horas_feriado,
         valor_hora_base=liquidacion.valor_hora_base,
         subtotal_horas=liquidacion.subtotal_horas,
@@ -178,10 +172,8 @@ def get_liquidacion_pdf(
     liquidacion_id: int,
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    """Genera y devuelve el PDF descargable de una liquidacion existente."""
+    """Genera y devuelve el PDF de una liquidacion existente."""
 
-    # Buscamos la liquidacion con su empleado, categoria y detalle para poder
-    # armar el recibo completo sin consultas adicionales.
     liquidacion = obtener_liquidacion_para_pdf(db, liquidacion_id)
     if liquidacion is None:
         raise HTTPException(
@@ -192,8 +184,6 @@ def get_liquidacion_pdf(
     pdf_bytes = generar_pdf_liquidacion(liquidacion)
     nombre_archivo = f"liquidacion_{liquidacion.id}.pdf"
 
-    # Enviamos el PDF en memoria como archivo descargable para evitar generar
-    # archivos temporales en disco cuando no son necesarios.
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
