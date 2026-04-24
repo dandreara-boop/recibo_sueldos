@@ -1,0 +1,31 @@
+# Entornos virtuales
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Variables de entorno
+.env
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Base de datos local (por si usás sqlite)
+*.db
+
+# Archivos temporales
+*.tmp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Flet / frontend (por si creás venv ahí)
+frontend/.venv/
