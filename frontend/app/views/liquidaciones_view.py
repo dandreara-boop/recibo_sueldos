@@ -3,6 +3,7 @@ import webbrowser
 import flet as ft
 
 from app.services.api_client import (
+    BASE_URL,
     generar_liquidacion,
     listar_empleados,
 )
@@ -130,6 +131,8 @@ def build_liquidaciones_view(page: ft.Page) -> ft.Control:
         page.update()
 
         res = generar_liquidacion(payload)
+        print("RESPUESTA:", res["data"])
+        print("ID GENERADO:", res["data"]["id"])
 
         if res["ok"]:
             liquidacion_id = res["data"]["id"]
@@ -144,9 +147,7 @@ def build_liquidaciones_view(page: ft.Page) -> ft.Control:
             resultado_text.color = ft.Colors.GREEN
             page.update()
 
-            pdf_url = (
-                f"http://127.0.0.1:8000/liquidaciones/{liquidacion_id}/pdf"
-            )
+            pdf_url = f"{BASE_URL}/liquidaciones/{liquidacion_id}/pdf"
             webbrowser.open(pdf_url)
         else:
             resultado_text.value = res["message"]

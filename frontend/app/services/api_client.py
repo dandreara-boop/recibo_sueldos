@@ -1,7 +1,8 @@
 import requests
 
 
-BASE_URL = "http://127.0.0.1:8000"
+#BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://68.183.139.118:8000"
 
 
 def probar_backend() -> dict:
