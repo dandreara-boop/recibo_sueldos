@@ -1,9 +1,10 @@
 import flet as ft
 
 from app.components.navbar import build_navbar
-from app.views.home_view import build_home_view
 from app.views.categorias_view import build_categorias_view
 from app.views.empleados_view import build_empleados_view
+from app.views.historial_liquidaciones_view import build_historial_liquidaciones_view
+from app.views.home_view import build_home_view
 from app.views.liquidaciones_view import build_liquidaciones_view
 
 
@@ -32,6 +33,10 @@ def main(page: ft.Page):
         contenido.content = build_liquidaciones_view(page)
         page.update()
 
+    def ir_historial(e):
+        contenido.content = build_historial_liquidaciones_view(page)
+        page.update()
+
     # navbar con botones
     navbar = ft.Container(
         content=ft.Row(
@@ -48,6 +53,7 @@ def main(page: ft.Page):
                         ft.TextButton("Categorías", on_click=ir_categorias),
                         ft.TextButton("Empleados", on_click=ir_empleados),
                         ft.TextButton("Liquidaciones", on_click=ir_liquidaciones),
+                        ft.TextButton("Historial", on_click=ir_historial),
                     ],
                 ),
             ],

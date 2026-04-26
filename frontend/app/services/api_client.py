@@ -189,3 +189,23 @@ def generar_liquidacion(payload: dict) -> dict:
             "ok": False,
             "message": f"Error al generar liquidación: {error}",
         }
+
+
+def listar_liquidaciones() -> dict:
+    """
+    Obtiene el historial resumido de liquidaciones desde el backend.
+    """
+    try:
+        response = requests.get(f"{BASE_URL}/liquidaciones/", timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+        return {
+            "ok": True,
+            "data": data,
+        }
+    except Exception as error:
+        return {
+            "ok": False,
+            "message": f"Error al listar liquidaciones: {error}",
+        }

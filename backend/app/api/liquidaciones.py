@@ -9,9 +9,11 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
+from app.models.empleado import Empleado
 from app.models.liquidacion import Liquidacion
 from app.models.liquidacion_detalle import LiquidacionDetalle
 from app.services.liquidacion_service import (
@@ -103,6 +105,63 @@ class LiquidacionResponse(BaseModel):
     total_en_letras: str
     fecha_generacion: datetime
     detalles: list[LiquidacionDetalleResponse]
+
+
+class LiquidacionHistorialItemResponse(BaseModel):
+    """Representa una fila resumida del historial de liquidaciones."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    empleado_id: int
+    nombre_completo: str
+    mes: int
+    anio: int
+    horas_laborables_mes: Decimal
+    horas_base_pagadas: Decimal
+    horas_extra_automaticas: Decimal
+    horas_extra_extraordinarias: Decimal
+    asistencia_perfecta: Decimal
+    total_descuentos: Decimal
+    total_neto: Decimal
+    fecha_generacion: datetime
+
+
+@router.get("/", response_model=list[LiquidacionHistorialItemResponse])
+def get_liquidaciones(db: Session = Depends(get_db)) -> list[LiquidacionHistorialItemResponse]:
+    """Lista el historial resumido de liquidaciones generadas."""
+
+    # Cargamos el empleado junto con cada liquidacion para poder construir el
+    # nombre completo sin consultas adicionales y ordenamos por id descendente.
+    stmt = (
+        select(Liquidacion)
+        .options(joinedload(Liquidacion.empleado))
+        .order_by(Liquidacion.id.desc())
+    )
+    liquidaciones = list(db.scalars(stmt).all())
+
+    # Transformamos los modelos ORM en una respuesta resumida pensada para el
+    # historial del frontend.
+    return [
+        LiquidacionHistorialItemResponse(
+            id=liquidacion.id,
+            empleado_id=liquidacion.empleado_id,
+            nombre_completo=(
+                f"{liquidacion.empleado.nombre} {liquidacion.empleado.apellido}"
+            ).strip(),
+            mes=liquidacion.mes,
+            anio=liquidacion.anio,
+            horas_laborables_mes=liquidacion.horas_laborables_mes,
+            horas_base_pagadas=liquidacion.horas_base_pagadas,
+            horas_extra_automaticas=liquidacion.horas_extra_automaticas,
+            horas_extra_extraordinarias=liquidacion.horas_extra_extraordinarias,
+            asistencia_perfecta=liquidacion.asistencia_perfecta,
+            total_descuentos=liquidacion.total_descuentos,
+            total_neto=liquidacion.total_neto,
+            fecha_generacion=liquidacion.fecha_generacion,
+        )
+        for liquidacion in liquidaciones
+    ]
 
 
 @router.post(
