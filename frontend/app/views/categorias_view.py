@@ -1,15 +1,21 @@
 import flet as ft
 
-from app.services.api_client import crear_categoria, listar_categorias
+from app.services.api_client import (
+    actualizar_categoria,
+    crear_categoria,
+    listar_categorias,
+)
 
 
 def build_categorias_view(page: ft.Page) -> ft.Control:
     """
-    Vista para listar y crear categorías.
+    Vista para listar, crear y editar categorías.
     """
 
+    categoria_en_edicion_id: dict[str, int | None] = {"value": None}
+
     nombre_input = ft.TextField(
-        label="Nombre de la categoría --esta",
+        label="Nombre de la categoría",
         width=300,
     )
 
@@ -26,8 +32,60 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         value="",
         size=14,
     )
+    boton_guardar = ft.ElevatedButton(
+        "Crear categoría",
+        icon=ft.Icons.ADD,
+    )
+    boton_cancelar = ft.OutlinedButton(
+        "Cancelar edición",
+        icon=ft.Icons.CANCEL_OUTLINED,
+        visible=False,
+    )
 
     lista_categorias = ft.Column(spacing=10)
+
+    def limpiar_formulario() -> None:
+        """
+        Restablece el formulario al modo alta.
+        """
+
+        categoria_en_edicion_id["value"] = None
+        nombre_input.value = ""
+        nombre_input.disabled = False
+        valor_hora_input.value = ""
+        asistencia_input.value = "0"
+        boton_guardar.text = "Crear categoría"
+        boton_guardar.icon = ft.Icons.ADD
+        boton_cancelar.visible = False
+
+    def iniciar_edicion(categoria: dict) -> None:
+        """
+        Carga los datos de una categoría en el formulario para editar.
+        """
+
+        categoria_en_edicion_id["value"] = categoria["id"]
+        nombre_input.value = categoria["nombre"]
+        nombre_input.disabled = True
+        valor_hora_input.value = str(categoria["valor_hora"])
+        asistencia_input.value = str(categoria["monto_asistencia_perfecta"])
+        boton_guardar.text = "Guardar cambios"
+        boton_guardar.icon = ft.Icons.SAVE_OUTLINED
+        boton_cancelar.visible = True
+        mensaje_text.value = (
+            f"Editando categoría: {categoria['nombre']}"
+        )
+        mensaje_text.color = ft.Colors.BLUE_700
+        page.update()
+
+    def on_cancelar_edicion(_: ft.ControlEvent) -> None:
+        """
+        Sale del modo edición y limpia el formulario.
+        """
+
+        limpiar_formulario()
+        mensaje_text.value = "Edición cancelada."
+        mensaje_text.color = ft.Colors.BLUE_GREY_700
+        page.update()
 
     def cargar_categorias():
         """
@@ -77,6 +135,11 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                             value=f"Asistencia: ${categoria['monto_asistencia_perfecta']}",
                             width=200,
                         ),
+                        ft.ElevatedButton(
+                            "Editar",
+                            icon=ft.Icons.EDIT_OUTLINED,
+                            on_click=lambda e, categoria=categoria: iniciar_edicion(categoria),
+                        ),
                     ]
                 ),
                 padding=10,
@@ -87,34 +150,19 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
 
         page.update()
 
-    def on_crear_categoria(e):
+    def on_guardar_categoria(_: ft.ControlEvent) -> None:
         """
-        Toma los datos del formulario y crea una categoría.
+        Toma los datos del formulario y crea o actualiza una categoría.
         """
         nombre = nombre_input.value.strip()
         valor_hora_texto = valor_hora_input.value.strip()
+        asistencia_texto = asistencia_input.value.strip()
 
-        if not nombre:
+        if not categoria_en_edicion_id["value"] and not nombre:
             mensaje_text.value = "El nombre no puede estar vacío."
             mensaje_text.color = ft.Colors.RED
             page.update()
             return
-
-        try:
-            valor_hora = float(valor_hora_texto)
-        except ValueError:
-            mensaje_text.value = "El valor hora debe ser numérico."
-            mensaje_text.color = ft.Colors.RED
-            page.update()
-            return
-
-        if valor_hora <= 0:
-            mensaje_text.value = "El valor hora debe ser mayor que 0."
-            mensaje_text.color = ft.Colors.RED
-            page.update()
-            return
-        
-        asistencia_texto = asistencia_input.value.strip()
 
         try:
             valor_hora = float(valor_hora_texto)
@@ -125,26 +173,42 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
             page.update()
             return
 
+        if valor_hora <= 0:
+            mensaje_text.value = "El valor hora debe ser mayor que 0."
+            mensaje_text.color = ft.Colors.RED
+            page.update()
+            return
+
         if monto_asistencia < 0:
             mensaje_text.value = "La asistencia perfecta no puede ser negativa."
             mensaje_text.color = ft.Colors.RED
             page.update()
             return
 
-        resultado = crear_categoria(nombre, valor_hora, monto_asistencia)
+        if categoria_en_edicion_id["value"] is None:
+            resultado = crear_categoria(nombre, valor_hora, monto_asistencia)
+            mensaje_ok = "Categoría creada correctamente."
+        else:
+            resultado = actualizar_categoria(
+                categoria_en_edicion_id["value"],
+                valor_hora,
+                monto_asistencia,
+            )
+            mensaje_ok = "Categoría actualizada correctamente."
 
         if resultado["ok"]:
-            mensaje_text.value = "Categoría creada correctamente."
+            mensaje_text.value = mensaje_ok
             mensaje_text.color = ft.Colors.GREEN
-            nombre_input.value = ""
-            valor_hora_input.value = ""
+            limpiar_formulario()
             cargar_categorias()
+            page.update()
         else:
             mensaje_text.value = resultado["message"]
             mensaje_text.color = ft.Colors.RED
             page.update()
 
-
+    boton_guardar.on_click = on_guardar_categoria
+    boton_cancelar.on_click = on_cancelar_edicion
 
     # Cargamos la lista al entrar por primera vez a la vista
     cargar_categorias()
@@ -158,7 +222,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                     weight=ft.FontWeight.BOLD,
                 ),
                 ft.Text(
-                    "Alta y listado de categorías",
+                    "Alta, edición y listado de categorías",
                     size=16,
                     color=ft.Colors.BLUE_GREY_700,
                 ),
@@ -167,11 +231,8 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                         nombre_input,
                         valor_hora_input,
                         asistencia_input,
-                        ft.ElevatedButton(
-                            "Crear categoría",
-                            icon=ft.Icons.ADD,
-                            on_click=on_crear_categoria,
-                        ),
+                        boton_guardar,
+                        boton_cancelar,
                     ],
                     wrap=True,
                 ),

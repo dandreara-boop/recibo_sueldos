@@ -40,3 +40,30 @@ def crear_categoria(
     db.commit()
     db.refresh(categoria)
     return categoria
+
+
+def obtener_categoria_por_id(db: Session, categoria_id: int) -> Categoria | None:
+    """Busca una categoria existente por su identificador."""
+
+    # Esta consulta se reutiliza en la edicion para validar si el registro
+    # existe antes de intentar modificarlo.
+    stmt = select(Categoria).where(Categoria.id == categoria_id)
+    return db.scalar(stmt)
+
+
+def actualizar_categoria(
+    db: Session,
+    categoria: Categoria,
+    valor_hora: Decimal,
+    monto_asistencia_perfecta: Decimal,
+) -> Categoria:
+    """Actualiza los importes editables de una categoria existente."""
+
+    # Solo modificamos los campos pedidos para esta fase: valor hora y monto
+    # de asistencia perfecta. El nombre queda intacto.
+    categoria.valor_hora = valor_hora
+    categoria.monto_asistencia_perfecta = monto_asistencia_perfecta
+
+    db.commit()
+    db.refresh(categoria)
+    return categoria

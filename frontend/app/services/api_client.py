@@ -77,6 +77,39 @@ def crear_categoria(
             "ok": False,
             "message": f"Error al crear categoría: {error}",
         }
+
+
+def actualizar_categoria(
+    categoria_id: int,
+    valor_hora: float,
+    monto_asistencia_perfecta: float,
+) -> dict:
+    """
+    Envía cambios de una categoría existente al backend.
+    """
+    try:
+        payload = {
+            "valor_hora": valor_hora,
+            "monto_asistencia_perfecta": monto_asistencia_perfecta,
+        }
+
+        response = requests.put(
+            f"{BASE_URL}/categorias/{categoria_id}",
+            json=payload,
+            timeout=5,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        return {
+            "ok": True,
+            "data": data,
+        }
+    except Exception as error:
+        return {
+            "ok": False,
+            "message": f"Error al actualizar categoría: {error}",
+        }
     
 def listar_empleados() -> dict:
     """
