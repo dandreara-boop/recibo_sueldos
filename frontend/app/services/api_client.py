@@ -1,9 +1,16 @@
+import os
+from pathlib import Path
+
 import requests
+from dotenv import load_dotenv
 
 
-#BASE_URL = "http://127.0.0.1:8000"
-BASE_URL = "http://68.183.139.118:8000"
+BASE_DIR = Path(__file__).resolve().parents[2]
+ENV_FILE = BASE_DIR / ".env"
 
+load_dotenv(dotenv_path=ENV_FILE)
+
+BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 def probar_backend() -> dict:
     """

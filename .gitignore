@@ -29,3 +29,7 @@ Thumbs.db
 
 # Flet / frontend (por si creás venv ahí)
 frontend/.venv/
+
+
+frontend/.env
+backend/.env
