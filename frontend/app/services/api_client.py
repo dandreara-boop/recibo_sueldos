@@ -3,6 +3,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -198,12 +199,34 @@ def generar_liquidacion(payload: dict) -> dict:
         }
 
 
-def listar_liquidaciones() -> dict:
+def listar_liquidaciones(
+    empleado_id: int | None = None,
+    mes: int | None = None,
+    anio: int | None = None,
+) -> dict:
     """
     Obtiene el historial resumido de liquidaciones desde el backend.
+
+    Los filtros son opcionales. Si no se envían, el backend devuelve todas
+    las liquidaciones ordenadas de la más reciente a la más antigua.
     """
     try:
-        response = requests.get(f"{BASE_URL}/liquidaciones/", timeout=10)
+        params = {}
+
+        if empleado_id is not None:
+            params["empleado_id"] = empleado_id
+
+        if mes is not None:
+            params["mes"] = mes
+
+        if anio is not None:
+            params["anio"] = anio
+
+        response = requests.get(
+            f"{BASE_URL}/liquidaciones/",
+            params=params,
+            timeout=10,
+        )
         response.raise_for_status()
 
         data = response.json()
@@ -216,3 +239,23 @@ def listar_liquidaciones() -> dict:
             "ok": False,
             "message": f"Error al listar liquidaciones: {error}",
         }
+
+
+def abrir_pdf_periodo(
+    mes: int,
+    anio: int,
+    empleado_id: int | None = None,
+) -> str:
+    """
+    Devuelve la URL del PDF masivo para un período determinado.
+    """
+    params = {
+        "mes": mes,
+        "anio": anio,
+    }
+
+    if empleado_id is not None:
+        params["empleado_id"] = empleado_id
+
+    query_string = urlencode(params)
+    return f"{BASE_URL}/liquidaciones/pdf-periodo?{query_string}"

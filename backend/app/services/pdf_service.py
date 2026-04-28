@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 from decimal import Decimal
+from io import BytesIO
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -11,6 +11,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Paragraph,
+    PageBreak,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -349,6 +350,71 @@ def generar_pdf_liquidacion(liquidacion: Liquidacion) -> bytes:
     )
 
     elementos.append(tabla_principal)
+
+    documento.build(elementos)
+
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
+
+def generar_pdf_liquidaciones_periodo(liquidaciones: list[Liquidacion]) -> bytes:
+    """
+    Genera un PDF en memoria con varias liquidaciones del mismo período.
+
+    Cada liquidación se renderiza en una página independiente para mantener
+    el documento legible y reutilizar el mismo formato del recibo individual.
+    """
+    buffer = BytesIO()
+
+    documento = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=1.0 * cm,
+        rightMargin=1.0 * cm,
+        topMargin=1.0 * cm,
+        bottomMargin=1.0 * cm,
+    )
+
+    estilos = _crear_estilos()
+    elementos = []
+
+    for indice, liquidacion in enumerate(liquidaciones):
+        copia_empleado = _crear_bloque_recibo(
+            liquidacion=liquidacion,
+            estilos=estilos,
+            texto_firma="Firma del empleado",
+        )
+
+        copia_empleador = _crear_bloque_recibo(
+            liquidacion=liquidacion,
+            estilos=estilos,
+            texto_firma="Firma del empleador",
+        )
+
+        # Reutilizamos el mismo formato de dos copias lado a lado para cada
+        # liquidación incluida en el PDF del período.
+        tabla_principal = Table(
+            [[copia_empleado, copia_empleador]],
+            colWidths=[13.0 * cm, 13.0 * cm],
+        )
+
+        tabla_principal.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+
+        elementos.append(tabla_principal)
+
+        if indice < len(liquidaciones) - 1:
+            elementos.append(PageBreak())
 
     documento.build(elementos)
 

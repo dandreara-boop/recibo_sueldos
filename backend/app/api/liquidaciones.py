@@ -23,6 +23,7 @@ from app.services.liquidacion_service import (
 )
 from app.services.pdf_service import (
     generar_pdf_liquidacion,
+    generar_pdf_liquidaciones_periodo,
     obtener_liquidacion_para_pdf,
 )
 
@@ -128,16 +129,32 @@ class LiquidacionHistorialItemResponse(BaseModel):
 
 
 @router.get("/", response_model=list[LiquidacionHistorialItemResponse])
-def get_liquidaciones(db: Session = Depends(get_db)) -> list[LiquidacionHistorialItemResponse]:
+def get_liquidaciones(
+    empleado_id: int | None = None,
+    mes: int | None = None,
+    anio: int | None = None,
+    db: Session = Depends(get_db),
+) -> list[LiquidacionHistorialItemResponse]:
     """Lista el historial resumido de liquidaciones generadas."""
 
     # Cargamos el empleado junto con cada liquidacion para poder construir el
-    # nombre completo sin consultas adicionales y ordenamos por id descendente.
+    # nombre completo sin consultas adicionales. Si llegan filtros, los
+    # aplicamos de forma incremental antes de ordenar por id descendente.
     stmt = (
         select(Liquidacion)
         .options(joinedload(Liquidacion.empleado))
-        .order_by(Liquidacion.id.desc())
     )
+
+    if empleado_id is not None:
+        stmt = stmt.where(Liquidacion.empleado_id == empleado_id)
+
+    if mes is not None:
+        stmt = stmt.where(Liquidacion.mes == mes)
+
+    if anio is not None:
+        stmt = stmt.where(Liquidacion.anio == anio)
+
+    stmt = stmt.order_by(Liquidacion.id.desc())
     liquidaciones = list(db.scalars(stmt).all())
 
     # Transformamos los modelos ORM en una respuesta resumida pensada para el
@@ -162,6 +179,49 @@ def get_liquidaciones(db: Session = Depends(get_db)) -> list[LiquidacionHistoria
         )
         for liquidacion in liquidaciones
     ]
+
+
+@router.get("/pdf-periodo")
+def get_liquidaciones_pdf_periodo(
+    mes: int,
+    anio: int,
+    empleado_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Genera un PDF con todas las liquidaciones de un período dado."""
+
+    # Buscamos las liquidaciones del período con su empleado, categoría y
+    # detalles para poder reutilizar el servicio de PDF sin consultas extra.
+    stmt = (
+        select(Liquidacion)
+        .options(
+            joinedload(Liquidacion.empleado).joinedload(Empleado.categoria),
+            joinedload(Liquidacion.detalles),
+        )
+        .where(Liquidacion.mes == mes, Liquidacion.anio == anio)
+    )
+
+    if empleado_id is not None:
+        stmt = stmt.where(Liquidacion.empleado_id == empleado_id)
+
+    stmt = stmt.order_by(Liquidacion.id.desc())
+    liquidaciones = list(db.scalars(stmt).unique().all())
+
+    if not liquidaciones:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay liquidaciones para el período indicado.",
+        )
+
+    pdf_bytes = generar_pdf_liquidaciones_periodo(liquidaciones)
+    sufijo_empleado = f"_empleado_{empleado_id}" if empleado_id is not None else ""
+    nombre_archivo = f"liquidaciones_{anio}_{mes:02d}{sufijo_empleado}.pdf"
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{nombre_archivo}"'},
+    )
 
 
 @router.post(
