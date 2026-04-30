@@ -93,6 +93,19 @@ def _to_decimal(value: Decimal | float | int) -> Decimal:
     return Decimal(str(value)).quantize(DECIMAL_CENTAVOS, rounding=ROUND_HALF_UP)
 
 
+def _formatear_horas(valor: Decimal) -> str:
+    """Devuelve horas legibles sin decimales cuando el valor es entero."""
+
+    valor_normalizado = _to_decimal(valor)
+
+    # Si la cantidad de horas no tiene parte decimal, la mostramos como entero
+    # para que el concepto del detalle quede mas claro en pantalla y en PDF.
+    if valor_normalizado == valor_normalizado.to_integral_value():
+        return str(int(valor_normalizado))
+
+    return format(valor_normalizado.normalize(), "f")
+
+
 def _calcular_horas_laborables_mes(mes: int, anio: int) -> Decimal:
     """
     Calcula las horas laborables del mes considerando:
@@ -256,6 +269,10 @@ def _construir_total_en_letras(
 
 def _construir_detalles_liquidacion(
     *,
+    horas_base_pagadas: Decimal,
+    horas_extra_automaticas: Decimal,
+    horas_extra_extraordinarias: Decimal,
+    horas_feriado: Decimal,
     monto_horas_base: Decimal,
     monto_horas_extra_automaticas: Decimal,
     monto_horas_extra_extraordinarias: Decimal,
@@ -273,7 +290,10 @@ def _construir_detalles_liquidacion(
     if monto_horas_base > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas base (mínimo garantizado 208 hs)",
+                concepto=(
+                    f"Horas base (mínimo garantizado "
+                    f"{_formatear_horas(horas_base_pagadas)} hs)"
+                ),
                 tipo="haber",
                 importe=monto_horas_base,
                 orden=orden,
@@ -284,7 +304,10 @@ def _construir_detalles_liquidacion(
     if monto_horas_extra_automaticas > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas extra automáticas",
+                concepto=(
+                    f"Horas extra automáticas "
+                    f"({_formatear_horas(horas_extra_automaticas)} hs)"
+                ),
                 tipo="haber",
                 importe=monto_horas_extra_automaticas,
                 orden=orden,
@@ -295,7 +318,10 @@ def _construir_detalles_liquidacion(
     if monto_horas_extra_extraordinarias > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas extra extraordinarias",
+                concepto=(
+                    f"Horas extra extraordinarias "
+                    f"({_formatear_horas(horas_extra_extraordinarias)} hs)"
+                ),
                 tipo="haber",
                 importe=monto_horas_extra_extraordinarias,
                 orden=orden,
@@ -306,7 +332,10 @@ def _construir_detalles_liquidacion(
     if monto_feriado > 0:
         detalles.append(
             LiquidacionDetalle(
-                concepto="Horas trabajadas en feriado",
+                concepto=(
+                    f"Horas trabajadas en feriado "
+                    f"({_formatear_horas(horas_feriado)} hs)"
+                ),
                 tipo="haber",
                 importe=monto_feriado,
                 orden=orden,
@@ -453,6 +482,10 @@ def generar_liquidacion(
     )
 
     detalles = _construir_detalles_liquidacion(
+        horas_base_pagadas=horas_base_pagadas,
+        horas_extra_automaticas=horas_extra_automaticas,
+        horas_extra_extraordinarias=horas_extra_extraordinarias,
+        horas_feriado=horas_feriado,
         monto_horas_base=monto_horas_base,
         monto_horas_extra_automaticas=monto_horas_extra_automaticas,
         monto_horas_extra_extraordinarias=monto_horas_extra_extraordinarias,
@@ -563,6 +596,10 @@ def corregir_liquidacion(
     )
 
     detalles = _construir_detalles_liquidacion(
+        horas_base_pagadas=horas_base_pagadas,
+        horas_extra_automaticas=horas_extra_automaticas,
+        horas_extra_extraordinarias=horas_extra_extraordinarias,
+        horas_feriado=horas_feriado,
         monto_horas_base=monto_horas_base,
         monto_horas_extra_automaticas=monto_horas_extra_automaticas,
         monto_horas_extra_extraordinarias=monto_horas_extra_extraordinarias,

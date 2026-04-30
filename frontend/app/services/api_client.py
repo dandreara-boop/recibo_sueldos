@@ -328,3 +328,50 @@ def abrir_pdf_periodo(
 
     query_string = urlencode(params)
     return f"{BASE_URL}/liquidaciones/pdf-periodo?{query_string}"
+
+
+def corregir_liquidacion(
+    liquidacion_id: int,
+    horas_extra_extraordinarias: float,
+    horas_feriado: float,
+    aplicar_asistencia_perfecta: bool,
+    descuento_cuenta_corriente: float,
+    descuento_adelanto: float,
+    descuento_varios: float,
+) -> dict:
+    """
+    Envía una corrección de liquidación histórica al backend.
+    """
+    try:
+        payload = {
+            "horas_extra_extraordinarias": horas_extra_extraordinarias,
+            "horas_feriado": horas_feriado,
+            "aplicar_asistencia_perfecta": aplicar_asistencia_perfecta,
+            "descuento_cuenta_corriente": descuento_cuenta_corriente,
+            "descuento_adelanto": descuento_adelanto,
+            "descuento_varios": descuento_varios,
+        }
+
+        response = requests.put(
+            f"{BASE_URL}/liquidaciones/{liquidacion_id}/corregir",
+            json=payload,
+            timeout=10,
+        )
+
+        # Reutilizamos el lector de mensajes del backend para mostrar errores
+        # claros cuando la corrección no puede aplicarse.
+        if response.status_code >= 400:
+            return {
+                "ok": False,
+                "message": obtener_mensaje_error(response),
+            }
+
+        return {
+            "ok": True,
+            "data": response.json(),
+        }
+    except Exception as error:
+        return {
+            "ok": False,
+            "message": f"Error al corregir liquidación: {error}",
+        }

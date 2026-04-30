@@ -150,7 +150,11 @@ class LiquidacionHistorialItemResponse(BaseModel):
     horas_base_pagadas: Decimal
     horas_extra_automaticas: Decimal
     horas_extra_extraordinarias: Decimal
+    horas_feriado: Decimal
     asistencia_perfecta: Decimal
+    descuento_cuenta_corriente: Decimal
+    descuento_adelanto: Decimal
+    descuento_varios: Decimal
     total_descuentos: Decimal
     total_neto: Decimal
     fecha_generacion: datetime
@@ -166,11 +170,15 @@ def get_liquidaciones(
     """Lista el historial resumido de liquidaciones generadas."""
 
     # Cargamos el empleado junto con cada liquidacion para poder construir el
-    # nombre completo sin consultas adicionales. Si llegan filtros, los
-    # aplicamos de forma incremental antes de ordenar por id descendente.
+    # nombre completo sin consultas adicionales. Tambien cargamos el detalle
+    # porque desde ahi reconstruimos los descuentos separados del historial.
+    # Si llegan filtros, los aplicamos antes de ordenar por id descendente.
     stmt = (
         select(Liquidacion)
-        .options(joinedload(Liquidacion.empleado))
+        .options(
+            joinedload(Liquidacion.empleado),
+            joinedload(Liquidacion.detalles),
+        )
     )
 
     if empleado_id is not None:
@@ -183,10 +191,11 @@ def get_liquidaciones(
         stmt = stmt.where(Liquidacion.anio == anio)
 
     stmt = stmt.order_by(Liquidacion.id.desc())
-    liquidaciones = list(db.scalars(stmt).all())
+    liquidaciones = list(db.scalars(stmt).unique().all())
 
     # Transformamos los modelos ORM en una respuesta resumida pensada para el
-    # historial del frontend.
+    # historial del frontend. Los descuentos se leen desde el detalle porque
+    # la cabecera solo guarda el total acumulado.
     return [
         LiquidacionHistorialItemResponse(
             id=liquidacion.id,
@@ -200,7 +209,32 @@ def get_liquidaciones(
             horas_base_pagadas=liquidacion.horas_base_pagadas,
             horas_extra_automaticas=liquidacion.horas_extra_automaticas,
             horas_extra_extraordinarias=liquidacion.horas_extra_extraordinarias,
+            horas_feriado=liquidacion.horas_feriado,
             asistencia_perfecta=liquidacion.asistencia_perfecta,
+            descuento_cuenta_corriente=next(
+                (
+                    detalle.importe
+                    for detalle in liquidacion.detalles
+                    if detalle.concepto == "Cuenta corriente"
+                ),
+                Decimal("0.00"),
+            ),
+            descuento_adelanto=next(
+                (
+                    detalle.importe
+                    for detalle in liquidacion.detalles
+                    if detalle.concepto == "Adelanto"
+                ),
+                Decimal("0.00"),
+            ),
+            descuento_varios=next(
+                (
+                    detalle.importe
+                    for detalle in liquidacion.detalles
+                    if detalle.concepto == "Varios"
+                ),
+                Decimal("0.00"),
+            ),
             total_descuentos=liquidacion.total_descuentos,
             total_neto=liquidacion.total_neto,
             fecha_generacion=liquidacion.fecha_generacion,
