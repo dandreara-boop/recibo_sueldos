@@ -1,6 +1,7 @@
 import flet as ft
 
 from app.services.api_client import (
+    actualizar_empleado,
     crear_empleado,
     listar_categorias,
     listar_empleados,
@@ -9,8 +10,10 @@ from app.services.api_client import (
 
 def build_empleados_view(page: ft.Page) -> ft.Control:
     """
-    Vista para listar y crear empleados.
+    Vista para listar, crear y editar empleados.
     """
+
+    empleado_en_edicion_id: dict[str, int | None] = {"value": None}
 
     nombre_input = ft.TextField(label="Nombre", width=180)
     apellido_input = ft.TextField(label="Apellido", width=180)
@@ -22,9 +25,69 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
         width=220,
         options=[],
     )
+    activo_checkbox = ft.Checkbox(
+        label="Empleado activo",
+        value=True,
+    )
 
     mensaje_text = ft.Text(value="", size=14)
     lista_empleados = ft.Column(spacing=10)
+    boton_guardar = ft.ElevatedButton(
+        "Crear empleado",
+        icon=ft.Icons.PERSON_ADD,
+    )
+    boton_cancelar = ft.OutlinedButton(
+        "Cancelar edición",
+        icon=ft.Icons.CANCEL_OUTLINED,
+        visible=False,
+    )
+
+    def limpiar_formulario() -> None:
+        """
+        Restablece el formulario al modo alta.
+        """
+
+        empleado_en_edicion_id["value"] = None
+        nombre_input.value = ""
+        apellido_input.value = ""
+        dni_input.value = ""
+        domicilio_input.value = ""
+        categoria_dropdown.value = None
+        activo_checkbox.value = True
+        boton_guardar.text = "Crear empleado"
+        boton_guardar.icon = ft.Icons.PERSON_ADD
+        boton_cancelar.visible = False
+
+    def iniciar_edicion(empleado: dict) -> None:
+        """
+        Carga los datos del empleado seleccionado en el formulario.
+        """
+
+        empleado_en_edicion_id["value"] = empleado["id"]
+        nombre_input.value = empleado["nombre"]
+        apellido_input.value = empleado["apellido"]
+        dni_input.value = empleado["dni"]
+        domicilio_input.value = empleado["domicilio"]
+        categoria_dropdown.value = str(empleado["categoria_id"])
+        activo_checkbox.value = empleado["activo"]
+        boton_guardar.text = "Guardar cambios"
+        boton_guardar.icon = ft.Icons.SAVE_OUTLINED
+        boton_cancelar.visible = True
+        mensaje_text.value = (
+            f"Editando empleado: {empleado['apellido']}, {empleado['nombre']}"
+        )
+        mensaje_text.color = ft.Colors.BLUE_700
+        page.update()
+
+    def on_cancelar_edicion(_: ft.ControlEvent) -> None:
+        """
+        Sale del modo edición y limpia el formulario.
+        """
+
+        limpiar_formulario()
+        mensaje_text.value = "Edición cancelada."
+        mensaje_text.color = ft.Colors.BLUE_GREY_700
+        page.update()
 
     def cargar_categorias_dropdown():
         """
@@ -88,6 +151,14 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
                         ft.Text(
                             f"Categoría: {empleado['categoria']['nombre']}"
                         ),
+                        ft.Text(
+                            f"Activo: {'Sí' if empleado['activo'] else 'No'}"
+                        ),
+                        ft.ElevatedButton(
+                            "Editar",
+                            icon=ft.Icons.EDIT_OUTLINED,
+                            on_click=lambda e, empleado=empleado: iniciar_edicion(empleado),
+                        ),
                     ],
                     spacing=4,
                 ),
@@ -99,15 +170,16 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
 
         page.update()
 
-    def on_crear_empleado(e):
+    def on_guardar_empleado(_: ft.ControlEvent) -> None:
         """
-        Toma los datos del formulario y crea un empleado.
+        Toma los datos del formulario y crea o actualiza un empleado.
         """
         nombre = nombre_input.value.strip()
         apellido = apellido_input.value.strip()
         dni = dni_input.value.strip()
         domicilio = domicilio_input.value.strip()
         categoria_id = categoria_dropdown.value
+        activo = activo_checkbox.value
 
         if not nombre or not apellido or not dni or not domicilio:
             mensaje_text.value = "Todos los campos son obligatorios."
@@ -121,29 +193,40 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
             page.update()
             return
 
-        resultado = crear_empleado(
-            nombre=nombre,
-            apellido=apellido,
-            dni=dni,
-            domicilio=domicilio,
-            categoria_id=int(categoria_id),
-        )
+        if empleado_en_edicion_id["value"] is None:
+            resultado = crear_empleado(
+                nombre=nombre,
+                apellido=apellido,
+                dni=dni,
+                domicilio=domicilio,
+                categoria_id=int(categoria_id),
+            )
+            mensaje_ok = "Empleado creado correctamente."
+        else:
+            resultado = actualizar_empleado(
+                empleado_id=empleado_en_edicion_id["value"],
+                nombre=nombre,
+                apellido=apellido,
+                dni=dni,
+                domicilio=domicilio,
+                categoria_id=int(categoria_id),
+                activo=bool(activo),
+            )
+            mensaje_ok = "Empleado actualizado correctamente."
 
         if resultado["ok"]:
-            mensaje_text.value = "Empleado creado correctamente."
+            mensaje_text.value = mensaje_ok
             mensaje_text.color = ft.Colors.GREEN
-
-            nombre_input.value = ""
-            apellido_input.value = ""
-            dni_input.value = ""
-            domicilio_input.value = ""
-            categoria_dropdown.value = None
-
+            limpiar_formulario()
             cargar_empleados()
+            page.update()
         else:
             mensaje_text.value = resultado["message"]
             mensaje_text.color = ft.Colors.RED
             page.update()
+
+    boton_guardar.on_click = on_guardar_empleado
+    boton_cancelar.on_click = on_cancelar_edicion
 
     # Carga inicial
     cargar_categorias_dropdown()
@@ -158,7 +241,7 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
                     weight=ft.FontWeight.BOLD,
                 ),
                 ft.Text(
-                    "Alta y listado de empleados",
+                    "Alta, edición y listado de empleados",
                     size=16,
                     color=ft.Colors.BLUE_GREY_700,
                 ),
@@ -174,11 +257,14 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
                     controls=[
                         domicilio_input,
                         categoria_dropdown,
-                        ft.ElevatedButton(
-                            "Crear empleado",
-                            icon=ft.Icons.PERSON_ADD,
-                            on_click=on_crear_empleado,
-                        ),
+                        activo_checkbox,
+                    ],
+                    wrap=True,
+                ),
+                ft.Row(
+                    controls=[
+                        boton_guardar,
+                        boton_cancelar,
                     ],
                     wrap=True,
                 ),

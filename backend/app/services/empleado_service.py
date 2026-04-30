@@ -28,6 +28,19 @@ def obtener_empleado_por_dni(db: Session, dni: str) -> Empleado | None:
     return db.scalar(stmt)
 
 
+def obtener_empleado_por_id(db: Session, empleado_id: int) -> Empleado | None:
+    """Busca un empleado por su identificador junto con su categoria."""
+
+    # Cargamos la categoria en la misma consulta para poder devolver la
+    # respuesta completa luego de editar el registro.
+    stmt = (
+        select(Empleado)
+        .options(joinedload(Empleado.categoria))
+        .where(Empleado.id == empleado_id)
+    )
+    return db.scalar(stmt)
+
+
 def obtener_categoria_por_id(db: Session, categoria_id: int) -> Categoria | None:
     """Busca una categoria por su identificador."""
 
@@ -61,3 +74,44 @@ def crear_empleado(
     db.commit()
     db.refresh(empleado)
     return empleado
+
+
+def actualizar_empleado(
+    db: Session,
+    empleado: Empleado,
+    nombre: str,
+    apellido: str,
+    dni: str,
+    domicilio: str,
+    categoria_id: int,
+    activo: bool,
+) -> Empleado:
+    """Actualiza un empleado existente y devuelve el registro persistido."""
+
+    # Asignamos los nuevos datos ya validados por la capa API.
+    empleado.nombre = nombre
+    empleado.apellido = apellido
+    empleado.dni = dni
+    empleado.domicilio = domicilio
+    empleado.categoria_id = categoria_id
+    empleado.activo = activo
+
+    db.commit()
+
+    empleado_actualizado = obtener_empleado_por_id(db, empleado.id)
+    return empleado_actualizado
+
+
+def obtener_empleado_por_dni_excluyendo_id(
+    db: Session,
+    dni: str,
+    empleado_id: int,
+) -> Empleado | None:
+    """Busca un empleado por DNI, excluyendo un empleado específico."""
+
+    stmt = (
+        select(Empleado)
+        .where(Empleado.dni == dni)
+        .where(Empleado.id != empleado_id)
+    )
+    return db.scalar(stmt)

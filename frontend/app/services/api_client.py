@@ -13,6 +13,19 @@ load_dotenv(dotenv_path=ENV_FILE)
 
 BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
+
+def obtener_mensaje_error(response) -> str:
+    """
+    Intenta leer el mensaje claro enviado por el backend.
+    """
+    try:
+        data = response.json()
+        return data.get("detail", "Ocurrió un error.")
+    except Exception:
+        return "Ocurrió un error inesperado."
+    
+
+
 def probar_backend() -> dict:
     """
     Intenta conectarse al backend y devuelve un resultado simple.
@@ -163,7 +176,63 @@ def crear_empleado(
             json=payload,
             timeout=5,
         )
-        response.raise_for_status()
+
+        # Si backend devuelve error, mostramos su mensaje claro.
+        if response.status_code >= 400:
+            return {
+                "ok": False,
+                "message": obtener_mensaje_error(response),
+            }
+
+        data = response.json()
+        return {
+            "ok": True,
+            "data": data,
+        }
+
+    except Exception as error:
+        return {
+            "ok": False,
+            "message": f"Error de conexión: {error}",
+        }
+    
+
+def actualizar_empleado(
+    empleado_id: int,
+    nombre: str,
+    apellido: str,
+    dni: str,
+    domicilio: str,
+    categoria_id: int,
+    activo: bool,
+) -> dict:
+    """
+    Envía cambios de un empleado existente al backend.
+    """
+    try:
+        payload = {
+            "nombre": nombre,
+            "apellido": apellido,
+            "dni": dni,
+            "domicilio": domicilio,
+            "categoria_id": categoria_id,
+            "activo": activo,
+        }
+
+        response = requests.put(
+            f"{BASE_URL}/empleados/{empleado_id}",
+            json=payload,
+            timeout=5,
+        )
+       # response.raise_for_status()
+
+       
+        if response.status_code >= 400:
+
+            return {
+                "ok": False,
+                "message": obtener_mensaje_error(response),
+            }
 
         data = response.json()
         return {
@@ -173,7 +242,7 @@ def crear_empleado(
     except Exception as error:
         return {
             "ok": False,
-            "message": f"Error al crear empleado: {error}",
+            "message": f"Error al actualizar empleado: {error}",
         }
     
 def generar_liquidacion(payload: dict) -> dict:
