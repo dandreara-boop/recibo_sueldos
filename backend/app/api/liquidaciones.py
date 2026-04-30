@@ -18,8 +18,10 @@ from app.models.liquidacion import Liquidacion
 from app.models.liquidacion_detalle import LiquidacionDetalle
 from app.services.liquidacion_service import (
     ResultadoLiquidacion,
+    corregir_liquidacion,
     generar_liquidacion,
     obtener_empleado_para_liquidacion,
+    obtener_liquidacion_para_correccion,
 )
 from app.services.pdf_service import (
     generar_pdf_liquidacion,
@@ -66,6 +68,32 @@ class LiquidacionGenerarRequest(BaseModel):
     )
     @classmethod
     def validar_no_negativo(cls, value: Decimal) -> Decimal:
+        if value < 0:
+            raise ValueError("Este valor no puede ser negativo.")
+        return value
+
+
+class LiquidacionCorreccionRequest(BaseModel):
+    """Datos editables para corregir una liquidacion histórica."""
+
+    horas_extra_extraordinarias: Decimal = Decimal("0")
+    horas_feriado: Decimal = Decimal("0")
+    aplicar_asistencia_perfecta: bool = False
+    descuento_cuenta_corriente: Decimal = Decimal("0")
+    descuento_adelanto: Decimal = Decimal("0")
+    descuento_varios: Decimal = Decimal("0")
+
+    @field_validator(
+        "horas_extra_extraordinarias",
+        "horas_feriado",
+        "descuento_cuenta_corriente",
+        "descuento_adelanto",
+        "descuento_varios",
+    )
+    @classmethod
+    def validar_no_negativo(cls, value: Decimal) -> Decimal:
+        """Impide horas o importes negativos en la corrección."""
+
         if value < 0:
             raise ValueError("Este valor no puede ser negativo.")
         return value
@@ -282,6 +310,65 @@ def post_generar_liquidacion(
         total_neto=liquidacion.total_neto,
         total_en_letras=liquidacion.total_en_letras,
         fecha_generacion=liquidacion.fecha_generacion,
+        detalles=detalles,
+    )
+
+
+@router.put("/{liquidacion_id}/corregir", response_model=LiquidacionResponse)
+def put_corregir_liquidacion(
+    liquidacion_id: int,
+    payload: LiquidacionCorreccionRequest,
+    db: Session = Depends(get_db),
+) -> LiquidacionResponse:
+    """Corrige una liquidacion histórica existente y regenera su detalle."""
+
+    # Buscamos la liquidación con su empleado, categoría y detalles actuales
+    # para poder recalcular sobre la base histórica ya almacenada.
+    liquidacion = obtener_liquidacion_para_correccion(db, liquidacion_id)
+    if liquidacion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La liquidacion indicada no existe.",
+        )
+
+    if liquidacion.empleado is None or liquidacion.empleado.categoria is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La liquidacion no tiene empleado o categoria asociados.",
+        )
+
+    resultado: ResultadoLiquidacion = corregir_liquidacion(
+        db=db,
+        liquidacion=liquidacion,
+        horas_extra_extraordinarias=payload.horas_extra_extraordinarias,
+        horas_feriado=payload.horas_feriado,
+        aplicar_asistencia_perfecta=payload.aplicar_asistencia_perfecta,
+        descuento_cuenta_corriente=payload.descuento_cuenta_corriente,
+        descuento_adelanto=payload.descuento_adelanto,
+        descuento_varios=payload.descuento_varios,
+    )
+
+    liquidacion_corregida: Liquidacion = resultado.liquidacion
+    detalles: list[LiquidacionDetalle] = resultado.detalles
+
+    return LiquidacionResponse(
+        id=liquidacion_corregida.id,
+        empleado_id=liquidacion_corregida.empleado_id,
+        mes=liquidacion_corregida.mes,
+        anio=liquidacion_corregida.anio,
+        horas_laborables_mes=liquidacion_corregida.horas_laborables_mes,
+        horas_base_pagadas=liquidacion_corregida.horas_base_pagadas,
+        horas_extra_automaticas=liquidacion_corregida.horas_extra_automaticas,
+        horas_extra_extraordinarias=liquidacion_corregida.horas_extra_extraordinarias,
+        horas_feriado=liquidacion_corregida.horas_feriado,
+        valor_hora_base=liquidacion_corregida.valor_hora_base,
+        subtotal_horas=liquidacion_corregida.subtotal_horas,
+        monto_feriado=liquidacion_corregida.monto_feriado,
+        asistencia_perfecta=liquidacion_corregida.asistencia_perfecta,
+        total_descuentos=liquidacion_corregida.total_descuentos,
+        total_neto=liquidacion_corregida.total_neto,
+        total_en_letras=liquidacion_corregida.total_en_letras,
+        fecha_generacion=liquidacion_corregida.fecha_generacion,
         detalles=detalles,
     )
 

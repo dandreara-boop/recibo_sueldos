@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.empleado import Empleado
@@ -214,6 +214,152 @@ def obtener_empleado_para_liquidacion(
     return db.scalar(stmt)
 
 
+def obtener_liquidacion_para_correccion(
+    db: Session,
+    liquidacion_id: int,
+) -> Liquidacion | None:
+    """Busca una liquidacion existente con empleado, categoria y detalles."""
+
+    # Cargamos todo lo necesario para recalcular y regenerar el detalle sin
+    # depender de consultas perezosas posteriores.
+    stmt = (
+        select(Liquidacion)
+        .options(
+            joinedload(Liquidacion.empleado).joinedload(Empleado.categoria),
+            joinedload(Liquidacion.detalles),
+        )
+        .where(Liquidacion.id == liquidacion_id)
+    )
+    return db.scalar(stmt)
+
+
+def _construir_total_en_letras(
+    empleado: Empleado,
+    mes: int,
+    anio: int,
+    total_neto: Decimal,
+    fecha_actual: datetime,
+) -> str:
+    """Construye el texto legal completo para la liquidacion."""
+
+    nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
+    monto_en_letras = _monto_en_letras(total_neto)
+    monto_en_numeros = format(total_neto, ".2f")
+    periodo = f"{MESES.get(mes, '').capitalize()} de {anio}"
+
+    return (
+        f"El {_fecha_legal(fecha_actual)}, {nombre_completo} recibió de "
+        f"M-50 S.A.S en concepto de pago correspondiente a {periodo} "
+        f"la suma de pesos {monto_en_letras} ($ {monto_en_numeros})"
+    )
+
+
+def _construir_detalles_liquidacion(
+    *,
+    monto_horas_base: Decimal,
+    monto_horas_extra_automaticas: Decimal,
+    monto_horas_extra_extraordinarias: Decimal,
+    monto_feriado: Decimal,
+    asistencia_perfecta: Decimal,
+    descuento_cuenta_corriente: Decimal,
+    descuento_adelanto: Decimal,
+    descuento_varios: Decimal,
+) -> list[LiquidacionDetalle]:
+    """Genera los conceptos de detalle consistentes para una liquidacion."""
+
+    detalles: list[LiquidacionDetalle] = []
+    orden = 1
+
+    if monto_horas_base > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Horas base (mínimo garantizado 208 hs)",
+                tipo="haber",
+                importe=monto_horas_base,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if monto_horas_extra_automaticas > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Horas extra automáticas",
+                tipo="haber",
+                importe=monto_horas_extra_automaticas,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if monto_horas_extra_extraordinarias > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Horas extra extraordinarias",
+                tipo="haber",
+                importe=monto_horas_extra_extraordinarias,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if monto_feriado > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Horas trabajadas en feriado",
+                tipo="haber",
+                importe=monto_feriado,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if asistencia_perfecta > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Asistencia perfecta",
+                tipo="haber",
+                importe=asistencia_perfecta,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if descuento_cuenta_corriente > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Cuenta corriente",
+                tipo="descuento",
+                importe=descuento_cuenta_corriente,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if descuento_adelanto > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Adelanto",
+                tipo="descuento",
+                importe=descuento_adelanto,
+                orden=orden,
+            )
+        )
+        orden += 1
+
+    if descuento_varios > 0:
+        detalles.append(
+            LiquidacionDetalle(
+                concepto="Varios",
+                tipo="descuento",
+                importe=descuento_varios,
+                orden=orden,
+            )
+        )
+
+    return detalles
+
+
 def generar_liquidacion(
     db: Session,
     empleado: Empleado,
@@ -279,15 +425,12 @@ def generar_liquidacion(
     )
 
     fecha_actual = datetime.now()
-    nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
-    monto_en_letras = _monto_en_letras(total_neto)
-    monto_en_numeros = format(total_neto, ".2f")
-    periodo = f"{MESES.get(mes, '').capitalize()} de {anio}"
-
-    total_en_letras = (
-        f"El {_fecha_legal(fecha_actual)}, {nombre_completo} recibió de "
-        f"M-50 S.A.S en concepto de pago correspondiente a {periodo} "
-        f"la suma de pesos {monto_en_letras} ($ {monto_en_numeros})"
+    total_en_letras = _construir_total_en_letras(
+        empleado=empleado,
+        mes=mes,
+        anio=anio,
+        total_neto=total_neto,
+        fecha_actual=fecha_actual,
     )
 
     liquidacion = Liquidacion(
@@ -309,96 +452,16 @@ def generar_liquidacion(
         fecha_generacion=fecha_actual,
     )
 
-    detalles: list[LiquidacionDetalle] = []
-    orden = 1
-
-    if monto_horas_base > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Horas base (mínimo garantizado 208 hs)",
-                tipo="haber",
-                importe=monto_horas_base,
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if monto_horas_extra_automaticas > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Horas extra automáticas",
-                tipo="haber",
-                importe=monto_horas_extra_automaticas,
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if monto_horas_extra_extraordinarias > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Horas extra extraordinarias",
-                tipo="haber",
-                importe=monto_horas_extra_extraordinarias,
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if monto_feriado > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Horas trabajadas en feriado",
-                tipo="haber",
-                importe=monto_feriado,
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if asistencia_perfecta > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Asistencia perfecta",
-                tipo="haber",
-                importe=asistencia_perfecta,
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if descuento_cuenta_corriente > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Cuenta corriente",
-                tipo="descuento",
-                importe=_to_decimal(descuento_cuenta_corriente),
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if descuento_adelanto > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Adelanto",
-                tipo="descuento",
-                importe=_to_decimal(descuento_adelanto),
-                orden=orden,
-            )
-        )
-        orden += 1
-
-    if descuento_varios > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Varios",
-                tipo="descuento",
-                importe=_to_decimal(descuento_varios),
-                orden=orden,
-            )
-        )
-        orden += 1
+    detalles = _construir_detalles_liquidacion(
+        monto_horas_base=monto_horas_base,
+        monto_horas_extra_automaticas=monto_horas_extra_automaticas,
+        monto_horas_extra_extraordinarias=monto_horas_extra_extraordinarias,
+        monto_feriado=monto_feriado,
+        asistencia_perfecta=asistencia_perfecta,
+        descuento_cuenta_corriente=_to_decimal(descuento_cuenta_corriente),
+        descuento_adelanto=_to_decimal(descuento_adelanto),
+        descuento_varios=_to_decimal(descuento_varios),
+    )
 
     db.add(liquidacion)
     db.flush()
@@ -413,4 +476,114 @@ def generar_liquidacion(
     for detalle in detalles:
         db.refresh(detalle)
 
+    return ResultadoLiquidacion(liquidacion=liquidacion, detalles=detalles)
+
+
+def corregir_liquidacion(
+    db: Session,
+    liquidacion: Liquidacion,
+    horas_extra_extraordinarias: Decimal,
+    horas_feriado: Decimal,
+    aplicar_asistencia_perfecta: bool,
+    descuento_cuenta_corriente: Decimal,
+    descuento_adelanto: Decimal,
+    descuento_varios: Decimal,
+) -> ResultadoLiquidacion:
+    """Corrige una liquidacion histórica sin alterar su contexto base."""
+
+    # Reutilizamos el valor hora histórico guardado en la propia liquidación.
+    valor_hora_base = _to_decimal(liquidacion.valor_hora_base)
+    horas_base_pagadas = _to_decimal(liquidacion.horas_base_pagadas)
+    horas_extra_automaticas = _to_decimal(liquidacion.horas_extra_automaticas)
+
+    horas_extra_extraordinarias = _to_decimal(horas_extra_extraordinarias)
+    horas_feriado = _to_decimal(horas_feriado)
+    descuento_cuenta_corriente = _to_decimal(descuento_cuenta_corriente)
+    descuento_adelanto = _to_decimal(descuento_adelanto)
+    descuento_varios = _to_decimal(descuento_varios)
+
+    monto_horas_base = _to_decimal(horas_base_pagadas * valor_hora_base)
+    monto_horas_extra_automaticas = _to_decimal(
+        horas_extra_automaticas * valor_hora_base * Decimal("2")
+    )
+    monto_horas_extra_extraordinarias = _to_decimal(
+        horas_extra_extraordinarias * valor_hora_base * Decimal("2")
+    )
+
+    subtotal_horas = _to_decimal(
+        monto_horas_base
+        + monto_horas_extra_automaticas
+        + monto_horas_extra_extraordinarias
+    )
+    monto_feriado = _to_decimal(horas_feriado * valor_hora_base)
+
+    # Si se pide asistencia perfecta, usamos el valor actual de la categoría
+    # solo como referencia de corrección, sin alterar el valor hora histórico.
+    asistencia_perfecta = (
+        _to_decimal(liquidacion.empleado.categoria.monto_asistencia_perfecta)
+        if aplicar_asistencia_perfecta
+        else Decimal("0.00")
+    )
+
+    total_descuentos = _to_decimal(
+        descuento_cuenta_corriente
+        + descuento_adelanto
+        + descuento_varios
+    )
+    total_neto = _to_decimal(
+        subtotal_horas + monto_feriado + asistencia_perfecta - total_descuentos
+    )
+
+    fecha_actual = datetime.now()
+    total_en_letras = _construir_total_en_letras(
+        empleado=liquidacion.empleado,
+        mes=liquidacion.mes,
+        anio=liquidacion.anio,
+        total_neto=total_neto,
+        fecha_actual=fecha_actual,
+    )
+
+    # Actualizamos solo los campos permitidos dentro de la liquidación.
+    liquidacion.horas_extra_extraordinarias = horas_extra_extraordinarias
+    liquidacion.horas_feriado = horas_feriado
+    liquidacion.subtotal_horas = subtotal_horas
+    liquidacion.monto_feriado = monto_feriado
+    liquidacion.asistencia_perfecta = asistencia_perfecta
+    liquidacion.total_descuentos = total_descuentos
+    liquidacion.total_neto = total_neto
+    liquidacion.total_en_letras = total_en_letras
+    liquidacion.fecha_generacion = fecha_actual
+
+    # Borramos el detalle previo y lo regeneramos con los nombres de conceptos
+    # actuales para que la corrección quede consistente.
+    db.execute(
+        delete(LiquidacionDetalle).where(
+            LiquidacionDetalle.liquidacion_id == liquidacion.id
+        )
+    )
+
+    detalles = _construir_detalles_liquidacion(
+        monto_horas_base=monto_horas_base,
+        monto_horas_extra_automaticas=monto_horas_extra_automaticas,
+        monto_horas_extra_extraordinarias=monto_horas_extra_extraordinarias,
+        monto_feriado=monto_feriado,
+        asistencia_perfecta=asistencia_perfecta,
+        descuento_cuenta_corriente=descuento_cuenta_corriente,
+        descuento_adelanto=descuento_adelanto,
+        descuento_varios=descuento_varios,
+    )
+
+    db.flush()
+
+    for detalle in detalles:
+        detalle.liquidacion_id = liquidacion.id
+        db.add(detalle)
+
+    db.commit()
+    db.refresh(liquidacion)
+
+    for detalle in detalles:
+        db.refresh(detalle)
+
+    liquidacion.detalles = detalles
     return ResultadoLiquidacion(liquidacion=liquidacion, detalles=detalles)
