@@ -222,6 +222,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                     "Categorías",
                     size=24,
                     weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_GREY_700,
                 ),
                 ft.Text(
                     "Alta, edición y listado de categorías",
@@ -237,6 +238,8 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                         boton_cancelar,
                     ],
                     wrap=True,
+                    color=ft.Colors.BLACK,
+                    
                 ),
 
                 mensaje_text,

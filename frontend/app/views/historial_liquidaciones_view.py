@@ -255,7 +255,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
         """
         Consulta el backend y vuelve a dibujar el historial.
         """
-
+        link_pdf_periodo.visible = False
         filtros = _leer_filtros()
         if filtros is None:
             return
@@ -352,7 +352,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
         """
         Limpia los filtros y vuelve a consultar todo el historial.
         """
-
+        link_pdf_periodo.visible = False
         empleado_dropdown.value = ""
         mes_input.value = ""
         anio_input.value = ""
