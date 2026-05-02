@@ -124,6 +124,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                             value=f"ID: {categoria['id']}",
                             width=80,
                             weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.BLACK
                         ),
                         ft.Text(
                             value=f"Nombre: {categoria['nombre']}",
@@ -256,4 +257,5 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         ),
         expand=True,
         padding=20,
+        
     )
