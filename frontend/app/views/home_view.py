@@ -135,8 +135,10 @@ def build_home_view(
                 ft.Column(
                     col={"xs": 12, "md": 4},
                     controls=[
-                        ft.ElevatedButton(
-                            "Probar conexión con backend",
+                        # Mantenemos el estilo del botón principal usando el
+                        # nuevo componente Button recomendado por Flet.
+                        ft.Button(
+                            content="Probar conexión con backend",
                             icon=ft.Icons.CLOUD_DONE_OUTLINED,
                             on_click=on_test_connection,
                             style=ft.ButtonStyle(

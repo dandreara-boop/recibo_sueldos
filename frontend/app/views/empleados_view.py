@@ -32,8 +32,10 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
 
     mensaje_text = ft.Text(value="", size=14)
     lista_empleados = ft.Column(spacing=10)
-    boton_guardar = ft.ElevatedButton(
-        "Crear empleado",
+    # Migramos al componente Button recomendado por Flet manteniendo la
+    # misma intención visual y la lógica actual de la vista.
+    boton_guardar = ft.Button(
+        content="Crear empleado",
         icon=ft.Icons.PERSON_ADD,
     )
     boton_cancelar = ft.OutlinedButton(
@@ -54,7 +56,7 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
         domicilio_input.value = ""
         categoria_dropdown.value = None
         activo_checkbox.value = True
-        boton_guardar.text = "Crear empleado"
+        boton_guardar.content = "Crear empleado"
         boton_guardar.icon = ft.Icons.PERSON_ADD
         boton_cancelar.visible = False
 
@@ -70,7 +72,7 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
         domicilio_input.value = empleado["domicilio"]
         categoria_dropdown.value = str(empleado["categoria_id"])
         activo_checkbox.value = empleado["activo"]
-        boton_guardar.text = "Guardar cambios"
+        boton_guardar.content = "Guardar cambios"
         boton_guardar.icon = ft.Icons.SAVE_OUTLINED
         boton_cancelar.visible = True
         mensaje_text.value = (
@@ -154,8 +156,8 @@ def build_empleados_view(page: ft.Page) -> ft.Control:
                         ft.Text(
                             f"Activo: {'Sí' if empleado['activo'] else 'No'}"
                         ),
-                        ft.ElevatedButton(
-                            "Editar",
+                        ft.Button(
+                            content="Editar",
                             icon=ft.Icons.EDIT_OUTLINED,
                             on_click=lambda e, empleado=empleado: iniciar_edicion(empleado),
                         ),

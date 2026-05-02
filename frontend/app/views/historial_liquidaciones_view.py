@@ -33,10 +33,10 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
         Abre en el navegador el PDF de la liquidación seleccionada.
         """
 
-        # Usamos el endpoint ya existente del backend para abrir el recibo
-        # directamente desde el navegador del usuario.
-        webbrowser.open(f"{BASE_URL}/liquidaciones/{liquidacion_id}/pdf")
+        pdf_url = f"{BASE_URL}/liquidaciones/{liquidacion_id}/pdf"
 
+        page.launch_url(pdf_url)
+        
     def abrir_modal_correccion(liquidacion: dict) -> None:
         """
         Abre un modal sencillo para corregir una liquidación existente.
@@ -183,7 +183,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
         )
         dialogo_correccion.actions = [
             ft.TextButton("Cancelar", on_click=cerrar_modal),
-            ft.ElevatedButton("Guardar corrección", on_click=guardar_correccion),
+            ft.Button(content="Guardar corrección", on_click=guardar_correccion),
         ]
         dialogo_correccion.actions_alignment = ft.MainAxisAlignment.END
         
@@ -323,8 +323,8 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                             spacing=4,
                             expand=True,
                         ),
-                        ft.ElevatedButton(
-                            "Abrir PDF",
+                        ft.Button(
+                            content="Abrir PDF",
                             icon=ft.Icons.PICTURE_AS_PDF,
                             on_click=lambda e, liquidacion_id=liquidacion["id"]: abrir_pdf(liquidacion_id),
                         ),
@@ -410,8 +410,8 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                 ),
                 ft.Row(
                     controls=[
-                        ft.ElevatedButton(
-                            "Buscar",
+                        ft.Button(
+                            content="Buscar",
                             icon=ft.Icons.SEARCH,
                             on_click=cargar_historial,
                         ),
@@ -420,13 +420,13 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                             icon=ft.Icons.CLEAR,
                             on_click=limpiar_filtros,
                         ),
-                        ft.ElevatedButton(
-                            "Actualizar",
+                        ft.Button(
+                            content="Actualizar",
                             icon=ft.Icons.REFRESH,
                             on_click=cargar_historial,
                         ),
-                        ft.ElevatedButton(
-                            "PDF del período",
+                        ft.Button(
+                            content="PDF del período",
                             icon=ft.Icons.PICTURE_AS_PDF,
                             on_click=on_pdf_periodo,
                         ),

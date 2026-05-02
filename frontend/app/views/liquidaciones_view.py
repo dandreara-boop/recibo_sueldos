@@ -131,8 +131,9 @@ def build_liquidaciones_view(page: ft.Page) -> ft.Control:
         page.update()
 
         res = generar_liquidacion(payload)
-        print("RESPUESTA:", res["data"])
-        print("ID GENERADO:", res["data"]["id"])
+       # print("RESPUESTA:", res["data"])
+        
+        #print("ID GENERADO:", res["data"]["id"])
 
         if res["ok"]:
             liquidacion_id = res["data"]["id"]
@@ -148,7 +149,7 @@ def build_liquidaciones_view(page: ft.Page) -> ft.Control:
             page.update()
 
             pdf_url = f"{BASE_URL}/liquidaciones/{liquidacion_id}/pdf"
-            webbrowser.open(pdf_url)
+            page.launch_url(pdf_url)
         else:
             resultado_text.value = res["message"]
             resultado_text.color = ft.Colors.RED
@@ -199,8 +200,10 @@ def build_liquidaciones_view(page: ft.Page) -> ft.Control:
                     ],
                     wrap=True,
                 ),
-                ft.ElevatedButton(
-                    "Generar liquidación",
+                # Reemplazamos ElevatedButton por Button para alinearnos con
+                # el componente recomendado por Flet sin alterar la lógica.
+                ft.Button(
+                    content="Generar liquidación",
                     icon=ft.Icons.RECEIPT_LONG,
                     on_click=on_generar,
                 ),

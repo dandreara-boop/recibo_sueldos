@@ -32,8 +32,10 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         value="",
         size=14,
     )
-    boton_guardar = ft.ElevatedButton(
-        "Crear categoría",
+    # Usamos el nuevo componente Button recomendado por Flet para evitar
+    # warnings de deprecación sin cambiar el comportamiento actual.
+    boton_guardar = ft.Button(
+        content="Crear categoría",
         icon=ft.Icons.ADD,
     )
     boton_cancelar = ft.OutlinedButton(
@@ -54,7 +56,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         nombre_input.disabled = False
         valor_hora_input.value = ""
         asistencia_input.value = "0"
-        boton_guardar.text = "Crear categoría"
+        boton_guardar.content = "Crear categoría"
         boton_guardar.icon = ft.Icons.ADD
         boton_cancelar.visible = False
 
@@ -68,7 +70,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
         nombre_input.disabled = True
         valor_hora_input.value = str(categoria["valor_hora"])
         asistencia_input.value = str(categoria["monto_asistencia_perfecta"])
-        boton_guardar.text = "Guardar cambios"
+        boton_guardar.content = "Guardar cambios"
         boton_guardar.icon = ft.Icons.SAVE_OUTLINED
         boton_cancelar.visible = True
         mensaje_text.value = (
@@ -135,8 +137,8 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                             value=f"Asistencia: ${categoria['monto_asistencia_perfecta']}",
                             width=200,
                         ),
-                        ft.ElevatedButton(
-                            "Editar",
+                        ft.Button(
+                            content="Editar",
                             icon=ft.Icons.EDIT_OUTLINED,
                             on_click=lambda e, categoria=categoria: iniciar_edicion(categoria),
                         ),
