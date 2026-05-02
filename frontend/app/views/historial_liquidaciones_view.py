@@ -16,7 +16,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
     
     """
     link_pdf_periodo = ft.TextButton(
-    text="Abrir PDF generado",
+    "Abrir PDF generado",
     visible=False,
 )
     mensaje_text = ft.Text(value="", size=14)
