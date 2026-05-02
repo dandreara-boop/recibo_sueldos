@@ -252,6 +252,7 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                     "Listado actual",
                     size=18,
                     weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLACK,
                 ),
                 lista_categorias,
             ],

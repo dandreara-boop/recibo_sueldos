@@ -120,17 +120,17 @@ def build_home_view(
                             weight=ft.FontWeight.BOLD,
                             color="#173B67",
                         ),
-                        ft.Text(
-                            (
-                                "Accedé rápido a las tareas más importantes del "
-                                "sistema: liquidaciones, historial, reportes y "
-                                "configuración interna."
-                            ),
-                            size=16,
-                            color="#4D6280",
-                        ),
+                        # ft.Text(
+                        #     (
+                        #         "Accedé rápido a las tareas más importantes del "
+                        #         "sistema: liquidaciones, historial, reportes y "
+                        #         "configuración interna."
+                        #     ),
+                        #     size=16,
+                        #     color="#4D6280",
+                        # ),
                     ],
-                    spacing=10,
+                    spacing=5,
                 ),
                 ft.Column(
                     col={"xs": 12, "md": 4},
