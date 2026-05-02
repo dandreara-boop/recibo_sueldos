@@ -36,7 +36,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
         pdf_url = f"{BASE_URL}/liquidaciones/{liquidacion_id}/pdf"
 
         page.launch_url(pdf_url)
-        
+
     def abrir_modal_correccion(liquidacion: dict) -> None:
         """
         Abre un modal sencillo para corregir una liquidación existente.
@@ -324,9 +324,8 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                             expand=True,
                         ),
                         ft.Button(
-                            content="Abrir PDF",
-                            icon=ft.Icons.PICTURE_AS_PDF,
-                            on_click=lambda e, liquidacion_id=liquidacion["id"]: abrir_pdf(liquidacion_id),
+                            content=ft.Text("Abrir PDF"),
+                            url=f"{BASE_URL}/liquidaciones/{liquidacion['id']}/pdf",
                         ),
                         ft.OutlinedButton(
                             "Corregir",
@@ -376,13 +375,10 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
 
         # Abrimos la URL generada por el cliente API para mantener toda la
         # lógica de armado de endpoints centralizada.
-        webbrowser.open(
-            abrir_pdf_periodo(
-                mes=mes,
-                anio=anio,
-                empleado_id=empleado_id,
-            )
-        )
+        pdf_url = f"{BASE_URL}/liquidaciones/pdf-periodo?mes={mes}&anio={anio}"
+        page.launch_url(pdf_url)
+        
+
 
     cargar_empleados()
     cargar_historial()
