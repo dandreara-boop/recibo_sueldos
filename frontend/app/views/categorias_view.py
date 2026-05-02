@@ -124,19 +124,22 @@ def build_categorias_view(page: ft.Page) -> ft.Control:
                             value=f"ID: {categoria['id']}",
                             width=80,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLACK
+                            color=ft.Colors.BLACK,
                         ),
                         ft.Text(
                             value=f"Nombre: {categoria['nombre']}",
                             width=250,
+                            color=ft.Colors.BLACK,
                         ),
                         ft.Text(
                             value=f"Valor hora: ${categoria['valor_hora']}",
                             width=180,
+                            color=ft.Colors.BLACK,
                         ),
                         ft.Text(
                             value=f"Asistencia: ${categoria['monto_asistencia_perfecta']}",
                             width=200,
+                            color=ft.Colors.BLACK,
                         ),
                         ft.Button(
                             content="Editar",
