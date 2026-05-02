@@ -13,8 +13,12 @@ from app.services.api_client import (
 def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
     """
     Vista simple para consultar el historial de liquidaciones.
+    
     """
-
+    link_pdf_periodo = ft.TextButton(
+    text="Abrir PDF generado",
+    visible=False,
+)
     mensaje_text = ft.Text(value="", size=14)
     lista_historial = ft.Column(spacing=10)
     empleado_dropdown = ft.Dropdown(
@@ -26,6 +30,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
     mes_input = ft.TextField(label="Mes", width=120)
     anio_input = ft.TextField(label="Año", width=140)
     dialogo_correccion = ft.AlertDialog(modal=True)
+
 
     def abrir_pdf(liquidacion_id: int) -> None:
         """
@@ -379,8 +384,14 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
 
         print("PDF URL:", pdf_url)
 
-        page.launch_url(pdf_url)
-        
+        link_pdf_periodo.url = pdf_url
+        link_pdf_periodo.visible = True
+
+        mensaje_text.value = "PDF del período listo. Presioná el enlace para abrirlo."
+        mensaje_text.color = ft.Colors.GREEN_700
+
+        page.update()
+                
 
 
     cargar_empleados()
@@ -433,7 +444,12 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                 ),
                 mensaje_text,
                 ft.Divider(),
+                #mensaje_text,
+                link_pdf_periodo,
+                ft.Divider(),
                 lista_historial,
+            
+                
             ],
             spacing=15,
             scroll=ft.ScrollMode.AUTO,
