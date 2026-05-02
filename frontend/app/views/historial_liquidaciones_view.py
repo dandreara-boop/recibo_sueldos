@@ -1,4 +1,3 @@
-import webbrowser
 
 import flet as ft
 
@@ -373,9 +372,13 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
             page.update()
             return
 
-        # Abrimos la URL generada por el cliente API para mantener toda la
-        # lógica de armado de endpoints centralizada.
         pdf_url = f"{BASE_URL}/liquidaciones/pdf-periodo?mes={mes}&anio={anio}"
+
+        if empleado_id:
+            pdf_url += f"&empleado_id={empleado_id}"
+
+        print("PDF URL:", pdf_url)
+
         page.launch_url(pdf_url)
         
 
