@@ -287,104 +287,98 @@ def _construir_detalles_liquidacion(
     detalles: list[LiquidacionDetalle] = []
     orden = 1
 
-    if monto_horas_base > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto=(
-                    f"Horas base (mínimo garantizado "
-                    f"{_formatear_horas(horas_base_pagadas)} hs)"
-                ),
-                tipo="haber",
-                importe=monto_horas_base,
-                orden=orden,
-            )
+    # Estos conceptos deben quedar siempre visibles en el recibo, incluso
+    # cuando su importe u horas sean 0, para que el detalle sea completo.
+    detalles.append(
+        LiquidacionDetalle(
+            concepto=(
+                f"Horas base pagadas "
+                f"({_formatear_horas(horas_base_pagadas)} hs)"
+            ),
+            tipo="haber",
+            importe=monto_horas_base,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if monto_horas_extra_automaticas > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto=(
-                    f"Horas extra automáticas "
-                    f"({_formatear_horas(horas_extra_automaticas)} hs)"
-                ),
-                tipo="haber",
-                importe=monto_horas_extra_automaticas,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto=(
+                f"Horas extra automáticas "
+                f"({_formatear_horas(horas_extra_automaticas)} hs)"
+            ),
+            tipo="haber",
+            importe=monto_horas_extra_automaticas,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if monto_horas_extra_extraordinarias > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto=(
-                    f"Horas extra extraordinarias "
-                    f"({_formatear_horas(horas_extra_extraordinarias)} hs)"
-                ),
-                tipo="haber",
-                importe=monto_horas_extra_extraordinarias,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto=(
+                f"Horas extra extraordinarias "
+                f"({_formatear_horas(horas_extra_extraordinarias)} hs)"
+            ),
+            tipo="haber",
+            importe=monto_horas_extra_extraordinarias,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if monto_feriado > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto=(
-                    f"Horas trabajadas en feriado "
-                    f"({_formatear_horas(horas_feriado)} hs)"
-                ),
-                tipo="haber",
-                importe=monto_feriado,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto=(
+                f"Horas trabajadas en feriado "
+                f"({_formatear_horas(horas_feriado)} hs)"
+            ),
+            tipo="haber",
+            importe=monto_feriado,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if asistencia_perfecta > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Asistencia perfecta",
-                tipo="haber",
-                importe=asistencia_perfecta,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto="Asistencia perfecta",
+            tipo="haber",
+            importe=asistencia_perfecta,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if descuento_cuenta_corriente > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Cuenta corriente",
-                tipo="descuento",
-                importe=descuento_cuenta_corriente,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto="Descuento cuenta corriente",
+            tipo="descuento",
+            importe=descuento_cuenta_corriente,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if descuento_adelanto > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Adelanto",
-                tipo="descuento",
-                importe=descuento_adelanto,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto="Descuento adelanto",
+            tipo="descuento",
+            importe=descuento_adelanto,
+            orden=orden,
         )
-        orden += 1
+    )
+    orden += 1
 
-    if descuento_varios > 0:
-        detalles.append(
-            LiquidacionDetalle(
-                concepto="Varios",
-                tipo="descuento",
-                importe=descuento_varios,
-                orden=orden,
-            )
+    detalles.append(
+        LiquidacionDetalle(
+            concepto="Descuento varios",
+            tipo="descuento",
+            importe=descuento_varios,
+            orden=orden,
         )
+    )
 
     return detalles
 

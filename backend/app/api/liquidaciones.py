@@ -32,6 +32,18 @@ from app.services.pdf_service import (
 router = APIRouter(prefix="/liquidaciones", tags=["liquidaciones"])
 
 
+def _obtener_importe_descuento(
+    detalles: list[LiquidacionDetalle],
+    *conceptos_aceptados: str,
+) -> Decimal:
+    """Busca un descuento aceptando nombres viejos y nuevos del concepto."""
+
+    for detalle in detalles:
+        if detalle.concepto in conceptos_aceptados:
+            return detalle.importe
+    return Decimal("0.00")
+
+
 class LiquidacionGenerarRequest(BaseModel):
     """Datos necesarios para calcular una liquidacion."""
 
@@ -211,29 +223,20 @@ def get_liquidaciones(
             horas_extra_extraordinarias=liquidacion.horas_extra_extraordinarias,
             horas_feriado=liquidacion.horas_feriado,
             asistencia_perfecta=liquidacion.asistencia_perfecta,
-            descuento_cuenta_corriente=next(
-                (
-                    detalle.importe
-                    for detalle in liquidacion.detalles
-                    if detalle.concepto == "Cuenta corriente"
-                ),
-                Decimal("0.00"),
+            descuento_cuenta_corriente=_obtener_importe_descuento(
+                liquidacion.detalles,
+                "Cuenta corriente",
+                "Descuento cuenta corriente",
             ),
-            descuento_adelanto=next(
-                (
-                    detalle.importe
-                    for detalle in liquidacion.detalles
-                    if detalle.concepto == "Adelanto"
-                ),
-                Decimal("0.00"),
+            descuento_adelanto=_obtener_importe_descuento(
+                liquidacion.detalles,
+                "Adelanto",
+                "Descuento adelanto",
             ),
-            descuento_varios=next(
-                (
-                    detalle.importe
-                    for detalle in liquidacion.detalles
-                    if detalle.concepto == "Varios"
-                ),
-                Decimal("0.00"),
+            descuento_varios=_obtener_importe_descuento(
+                liquidacion.detalles,
+                "Varios",
+                "Descuento varios",
             ),
             total_descuentos=liquidacion.total_descuentos,
             total_neto=liquidacion.total_neto,

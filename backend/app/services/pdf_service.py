@@ -165,8 +165,18 @@ def _crear_tabla_detalles(liquidacion: Liquidacion) -> Table:
 
     datos_tabla.append(
         [
-            "Totales",
+            "Total haberes",
             f"$ {_formatear_importe(total_haberes)}",
+            "",
+        ]
+    )
+
+    # Dejamos el total de descuentos en una fila explícita para que también
+    # figure cuando el valor sea 0 y el recibo quede alineado con el detalle.
+    datos_tabla.append(
+        [
+            "Total descuentos",
+            "",
             f"$ {_formatear_importe(Decimal(liquidacion.total_descuentos))}",
         ]
     )
@@ -258,7 +268,7 @@ def _crear_bloque_recibo(
 
     # Texto legal
     elementos.append(
-        Paragraph("<b>Texto legal:</b>", estilos["TextoRecibo"])
+        Paragraph("<b>Villa Mercedes:</b>", estilos["TextoRecibo"])
     )
     elementos.append(
         Paragraph(liquidacion.total_en_letras, estilos["TextoLegal"])
