@@ -7,8 +7,10 @@ from app.api.empleados import router as empleados_router
 from app.api.liquidaciones import router as liquidaciones_router
 from app.core.init_db import init_db
 
-app = FastAPI(title="Sueldos API")
-
+app = FastAPI(
+    title="Sueldos API",
+    root_path="/api",
+)
 
 @app.on_event("startup")
 def on_startup() -> None:
