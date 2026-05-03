@@ -1,6 +1,10 @@
 """Vista de configuración con accesos rápidos a catálogos internos."""
 
 import flet as ft
+from app.services.api_client import probar_backend
+
+
+
 
 
 def _build_config_card(
@@ -58,6 +62,21 @@ def _build_config_card(
 
 def build_configuracion_view(page: ft.Page, on_categorias, on_empleados) -> ft.Control:
     """Construye la vista de configuración con accesos a catálogos base."""
+    resultado = probar_backend()
+    if resultado["ok"]:
+        status = ft.Text(
+            "🟢 Backend conectado correctamente",
+            color=ft.Colors.GREEN_700,
+            size=15,
+            weight=ft.FontWeight.BOLD,
+        )
+    else:
+        status = ft.Text(
+            f"🔴 {resultado['message']}",
+            color=ft.Colors.RED_700,
+            size=15,
+            weight=ft.FontWeight.BOLD,
+        )
 
     # Esta vista actúa como un pequeño hub interno para agrupar pantallas
     # administrativas sin alterar las vistas que ya existen por separado.
@@ -80,6 +99,7 @@ def build_configuracion_view(page: ft.Page, on_categorias, on_empleados) -> ft.C
                     size=16,
                     color="#5A6E88",
                 ),
+                status,
                 ft.ResponsiveRow(
                     controls=[
                         _build_config_card(
@@ -100,6 +120,7 @@ def build_configuracion_view(page: ft.Page, on_categorias, on_empleados) -> ft.C
                             color="#0F9D7A",
                             on_click=on_empleados,
                         ),
+                        
                     ],
                     columns=12,
                     spacing=20,
@@ -108,5 +129,6 @@ def build_configuracion_view(page: ft.Page, on_categorias, on_empleados) -> ft.C
             ],
             spacing=24,
             scroll=ft.ScrollMode.AUTO,
+        
         ),
     )

@@ -300,6 +300,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                                     value=liquidacion["nombre_completo"],
                                     size=16,
                                     weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.BLUE_GREY_700,
                                 ),
                                 ft.Text(
                                     value=(
@@ -307,6 +308,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                                         f"{liquidacion['anio']}"
                                     ),
                                     size=14,
+                                    color=ft.Colors.BLUE_GREY_700,
                                 ),
                                 ft.Text(
                                     value=(
@@ -314,6 +316,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                                         f"{float(liquidacion['total_neto']):.2f}"
                                     ),
                                     size=14,
+                                    color=ft.Colors.BLUE_GREY_700,
                                 ),
                                 ft.Text(
                                     value=(
@@ -404,6 +407,7 @@ def build_historial_liquidaciones_view(page: ft.Page) -> ft.Control:
                     "Historial de liquidaciones",
                     size=24,
                     weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_GREY_700,
                 ),
                 ft.Text(
                     "Consulta las liquidaciones generadas y abre sus PDFs.",

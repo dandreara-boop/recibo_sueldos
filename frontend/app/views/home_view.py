@@ -2,7 +2,7 @@
 
 import flet as ft
 
-from app.services.api_client import probar_backend
+
 
 
 def _build_dashboard_card(
@@ -80,29 +80,6 @@ def build_home_view(
 ) -> ft.Control:
     """Construye el Home con formato de dashboard y accesos principales."""
 
-    status_text = ft.Text(
-        value="Estado del backend: pendiente de verificación",
-        size=14,
-        color="#5C6F87",
-    )
-
-    def on_test_connection(_: ft.ControlEvent) -> None:
-        """Ejecuta la prueba HTTP y actualiza el estado visible."""
-
-        status_text.value = "Estado del backend: verificando conexión..."
-        status_text.color = "#5C6F87"
-        page.update()
-
-        resultado = probar_backend()
-        if resultado["ok"]:
-            status_text.value = f"Estado del backend: {resultado['message']}"
-            status_text.color = ft.Colors.GREEN_700
-        else:
-            status_text.value = f"Estado del backend: {resultado['message']}"
-            status_text.color = ft.Colors.RED_700
-
-        page.update()
-
     # El encabezado combina bienvenida, breve contexto y una acción rápida
     # para revisar la conexión sin quitar protagonismo a las cards principales.
     encabezado = ft.Container(
@@ -116,43 +93,15 @@ def build_home_view(
                     controls=[
                         ft.Text(
                             "Panel principal",
-                            size=34,
+                            size=28,
                             weight=ft.FontWeight.BOLD,
                             color="#173B67",
                         ),
-                        # ft.Text(
-                        #     (
-                        #         "Accedé rápido a las tareas más importantes del "
-                        #         "sistema: liquidaciones, historial, reportes y "
-                        #         "configuración interna."
-                        #     ),
-                        #     size=16,
-                        #     color="#4D6280",
-                        # ),
+
                     ],
                     spacing=5,
                 ),
-                ft.Column(
-                    col={"xs": 12, "md": 4},
-                    controls=[
-                        # Mantenemos el estilo del botón principal usando el
-                        # nuevo componente Button recomendado por Flet.
-                        ft.Button(
-                            content="Probar conexión con backend",
-                            icon=ft.Icons.CLOUD_DONE_OUTLINED,
-                            on_click=on_test_connection,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=14),
-                                padding=18,
-                                bgcolor="#1D5FD0",
-                                color=ft.Colors.WHITE,
-                            ),
-                        ),
-                        status_text,
-                    ],
-                    spacing=12,
-                    horizontal_alignment=ft.CrossAxisAlignment.END,
-                ),
+
             ]
         ),
     )

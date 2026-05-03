@@ -18,6 +18,11 @@ def main(page: ft.Page):
 
     # Este contenedor central se reutiliza para intercambiar vistas sin tocar
     # el navbar actual ni reconstruir toda la pantalla cada vez.
+    page.theme_mode = ft.ThemeMode.LIGHT
+    page.theme = ft.Theme(
+        color_scheme_seed=ft.Colors.BLUE,
+    )
+
     contenido = ft.Container(expand=True)
 
     def ir_home(e=None):
